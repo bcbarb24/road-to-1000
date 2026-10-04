@@ -1,6 +1,7 @@
 -- Road to 1000: members version
 -- Tables, security rules, approved-email sign-up, game history and stats.
--- Run once in the Supabase SQL editor. Safe to re-run (drops and recreates these objects).
+-- Run once in the Supabase SQL editor, after changing owner@example.com (near the end) to your own email.
+-- WARNING: re-running drops and recreates these tables, erasing the approved list and all game history.
 
 begin;
 
@@ -226,7 +227,7 @@ do $$ begin
   begin alter publication supabase_realtime add table public.moves; exception when duplicate_object then null; end;
 end $$;
 
--- The owner: approved and admin.
+-- The owner: approved and admin. CHANGE owner@example.com to the email you'll sign in with before running.
 insert into public.allowed_emails (email, is_admin, note) values ('owner@example.com', true, 'owner')
   on conflict (email) do update set is_admin = true;
 

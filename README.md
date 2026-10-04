@@ -63,7 +63,7 @@ It runs on [Supabase](https://supabase.com) (sign-in, database and live updates)
 Already done for this project except where marked. Steps, for reference or for a new project:
 
 1. **Create the project** with *Enable Data API* on, *Automatically expose new tables* off, and *Enable automatic RLS* on.
-2. **Run [`supabase/schema.sql`](supabase/schema.sql)** in the SQL Editor. It creates the tables, security rules, sign-up hook function and stats views, and approves the owner's email as admin.
+2. **Run [`supabase/schema.sql`](supabase/schema.sql)** in the SQL Editor, after changing `owner@example.com` near the end to the email you'll sign in with. It creates the tables, security rules, sign-up hook function and stats views, and approves that email as admin.
    - **Warning:** the script drops and recreates its tables. Running it again **erases the approved list and all game history**. Make later changes with a separate migration script.
 3. **Turn on the sign-up hook:** Authentication → Hooks → Before User Created → Postgres → `public.hook_before_user_created`.
 4. **Set the sign-in return address:** Authentication → URL Configuration. Site URL `https://bcbarb24.github.io/road-to-1000/members/`; add `https://bcbarb24.github.io/road-to-1000/members/**` to Redirect URLs.
