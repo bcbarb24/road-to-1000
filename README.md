@@ -86,7 +86,19 @@ Already done for this project except where marked. Steps, for reference or for a
 - **Reshuffle (house rule):** when the draw pile runs out, the thrown-away cards are shuffled into a new draw pile, as many times as needed. If nobody plays a card through a whole pile, reshuffling stops and the hand is played out without drawing, as in the official rules. (Officially the discard pile is never reused.)
 - Standard scoring: 1 point per km, 100 per safety, 300 for all four, 300 per coup fourré, 400 for finishing, and bonuses for a delayed action (finishing after every card has been drawn), a safe trip and a shutout. First to 5000 points wins.
 
-## Project files
+## Design alternatives
+
+The game uses the current card design. Three alternative card art directions were mocked up for reference (10 sample cards each) and are **not used in the game**:
+
+- **Option A, real road signs:** hazards as red warning triangles, remedies as round blue signs, safeties as green shields, distance cards as green highway signs.
+- **Option B, dashboard lights:** each card is a glowing dashboard warning light; distance cards are odometer readouts.
+- **Option C, Pip the car:** a cartoon car mascot on every card.
+
+All three move further from the original Mille Bornes artwork, put the English name first, and replace the original distance animals with a speed scale (turtle to rocket). See [`design/art-options.png`](design/art-options.png), or the live page at https://bcbarb24.github.io/road-to-1000/design/art-options.html.
+
+![Card art options](design/art-options.png)
+
+
 
 No build step; GitHub Pages serves the files as they are.
 
@@ -97,6 +109,7 @@ No build step; GitHub Pages serves the files as they are.
 | `game-core.js` | Shared by both: cards and artwork, rules, reshuffle, scoring, computer player, table rendering |
 | `game.css` | Shared styles |
 | `supabase/schema.sql` | Members database: tables, security rules, sign-up hook, stats |
+| `design/` | Alternative card art mockups (reference only, not used in the game) |
 
 To run locally, serve the folder (`python3 -m http.server`) and open `http://localhost:8000/`.
 

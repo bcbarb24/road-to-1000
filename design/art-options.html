@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Road to 1000 · Card art options</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Bowlby+One&family=Nunito:ital,wght@0,500;0,700;0,800;0,900;1,600&display=swap">
+<link rel="stylesheet" href="../game.css">
+<style>
+.wrap{max-width:1040px}
+.opt{background:var(--asphalt-2);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.opt h2{color:var(--paint);font-size:1.4rem}
+.opt p{margin:0;color:#cfd3da;max-width:75ch;line-height:1.45}
+.opt ul{margin:0;padding-left:1.1rem;color:var(--muted);font-size:.92rem;line-height:1.45}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+@media (max-width:700px){.grid{grid-template-columns:repeat(3,1fr)}}
+.card{cursor:default}
+.card .nm.fr2{font-size:7.5cqw;font-style:italic;font-weight:600;opacity:.65}
+.tag{font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;font-weight:900;color:var(--muted)}
+</style></head><body><div class="wrap">
+<div class="top"><span class="brand">Road to 1000 · card art options</span><span class="tag">Design alternatives · not used in the game</span></div>
+<div id="out" style="display:flex;flex-direction:column;gap:16px"></div>
+</div>
+<script src="../game-core.js"></script>
+<script>
+const SAMPLE=['ACC','FLAT','STOP','LIMIT','SPARE','ROLL','ACE','ROW','D25','D200'];
+const FR={ACC:'Accident',FLAT:'Crevaison',STOP:'Feu rouge',LIMIT:'Limite de vitesse',SPARE:'Roue de secours',ROLL:'Feu vert',ACE:'As du volant',ROW:'Véhicule prioritaire',D25:'',D200:''};
+const IDX2={ACC:'A',FLAT:'C',STOP:'S',LIMIT:'L',SPARE:'RS',ROLL:'V',ACE:'★',ROW:'★'};
+const flip=(x,y,inner)=>`<g transform="translate(${x} ${y}) scale(-1 1)">${inner}</g>`;
+// distance creatures that are not the original animals: turtle (slow) and rocket (fast)
+const TURTLE=`<ellipse cx="11" cy="12" rx="8.5" ry="5.5" fill="#2e9a4a" stroke="${K}" stroke-width="1"/><path d="M5 11h12M8 8l1.5 6M14 8l-1.5 6" stroke="#1f7a45" stroke-width="1"/><circle cx="20.5" cy="11" r="2.6" fill="#8bc34a" stroke="${K}" stroke-width=".9"/><circle cx="21.3" cy="10.3" r=".6" fill="${K}"/>${ln('M6 16.5l-1 2.5M15 16.5l1 2.5',K,1.6)}`;
+const ROCKET=`<path d="M2 11c4-5 11-6 18-3-1 3-1 3 0 6-7 3-14 2-18-3z" fill="#e8eef7" stroke="${K}" stroke-width="1"/><circle cx="12" cy="11" r="2.2" fill="${B}" stroke="${K}" stroke-width=".8"/><path d="M5 8L2 3h4l3 4zM5 14l-3 5h4l3-4z" fill="${R}" stroke="${K}" stroke-width=".8"/><path d="M2 11l-4-2 1 2-1 2z" fill="#f2c94c"/>`;
+const creature=n=>n<=50?TURTLE:ROCKET;
+
+/* Option A: road signs */
+const tri=icon=>`<path d="M32 6L60 55H4Z" fill="#fff" stroke="${R}" stroke-width="5.5" stroke-linejoin="round"/>${icon}`;
+const disc=icon=>`<circle cx="32" cy="32" r="27" fill="${B}" stroke="#fff" stroke-width="2"/>${icon}`;
+const shieldA=icon=>`<path d="M32 4l24 8v18c0 16-11 26-24 30C19 56 8 46 8 30V12z" fill="${G}" stroke="${K}" stroke-width="1.5"/>${icon}`;
+const oct=`<path d="M42.3 7.1L56.9 21.7V42.3L42.3 56.9H21.7L7.1 42.3V21.7L21.7 7.1z" fill="${R}" stroke="#fff" stroke-width="2.5"/><text x="32" y="38.5" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="16" fill="#fff">STOP</text>`;
+const hwy=n=>`<rect x="29" y="40" width="6" height="22" fill="#8a919c"/><rect x="5" y="6" width="54" height="36" rx="5" fill="#1f7a45" stroke="#fff" stroke-width="2.5"/><text x="32" y="31" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="${n>99?17:19}" fill="#fff">${n}</text><text x="32" y="38.5" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="5.5" fill="#fff">KM</text><circle cx="51" cy="51" r="11" fill="#fff" stroke="${K}" stroke-width="1"/><g transform="translate(43 44) scale(.72)">${creature(n)}</g>`;
+const A={
+  ACC: tri(`${car(12,36,.36,K)}${flip(52,36,car(0,0,.36,K))}${ln('M32 30v5M27.5 31.5l-3-3M36.5 31.5l3-3',R,1.8)}`),
+  FLAT: tri(`<ellipse cx="32" cy="44" rx="12" ry="6.5" fill="${K}"/><ellipse cx="32" cy="43.5" rx="4.5" ry="2.4" fill="#fff"/>${ln('M17 33l-4-3M47 33l4-3M32 30v-5',K,1.8)}`),
+  STOP: oct,
+  LIMIT: `<circle cx="32" cy="32" r="27" fill="#fff" stroke="${R}" stroke-width="7"/><text x="32" y="41" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="25" fill="${K}">50</text>`,
+  SPARE: disc(`<circle cx="29" cy="35" r="13" fill="#fff"/><circle cx="29" cy="35" r="6" fill="${B}"/><circle cx="29" cy="35" r="2" fill="#fff"/><path d="M47 13v10M42 18h10" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>`),
+  ROLL: disc(`<path d="M32 11l13 15h-8v24H27V26h-8z" fill="#fff"/>`),
+  ACE: shieldA(`<circle cx="32" cy="30" r="12" fill="none" stroke="#fff" stroke-width="3.5"/><circle cx="32" cy="30" r="3" fill="#fff"/>${ln('M20 31h9M35 31h9M32 33v9',`#fff`,3)}<path d="M32 48l1.8 3.6 4 .6-2.9 2.8.7 4-3.6-1.9-3.6 1.9.7-4-2.9-2.8 4-.6z" fill="#f2c94c"/>`),
+  ROW: shieldA(`<path d="M22 40V31a10 10 0 0 1 20 0v9z" fill="#fff"/><rect x="19" y="40" width="26" height="5" rx="1.5" fill="#fff"/>${ln('M32 13v5M20 18l3 3M44 18l-3 3',`#fff`,2.4)}`),
+  D25: hwy(25), D200: hwy(200),
+};
+
+/* Option B: dashboard warning lights */
+const HC='#ff5a4e', FC='#3fd17f', SC='#f2c94c';
+const panel=(col,icon)=>`<rect x="3" y="3" width="58" height="58" rx="13" fill="#15171b" stroke="#2c3038" stroke-width="2"/><circle cx="32" cy="32" r="22" fill="${col}" opacity=".16"/>${icon}`;
+const odo=n=>`<rect x="3" y="3" width="58" height="58" rx="13" fill="#15171b"/><g transform="translate(20 6) scale(1.1)">${creature(n)}</g>${String(n).padStart(4,'0').split('').map((d,i)=>`<rect x="${7+i*13}" y="31" width="11" height="17" rx="2" fill="${i>=4-String(n).length?'#f4f1e8':'#2c3038'}"/><text x="${12.5+i*13}" y="44.5" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="13" fill="${i>=4-String(n).length?K:'#6b7078'}">${d}</text>`).join('')}<text x="32" y="58" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="6" fill="#9aa0aa">KM</text>`;
+const B2={
+  ACC: panel(HC,`<path d="M32 13l4 9 9-3-4 9 8 5-10 1 1 10-8-6-8 6 1-10-10-1 8-5-4-9 9 3z" fill="none" stroke="${HC}" stroke-width="2.6" stroke-linejoin="round"/>`),
+  FLAT: panel(HC,`<path d="M20 18c-6 10-6 20 0 28h24c6-8 6-18 0-28" fill="none" stroke="${HC}" stroke-width="3.4" stroke-linecap="round"/>${ln('M22 50h3M30.5 50h3M39 50h3',HC,3)}${ln('M32 23v11',HC,3.4)}<circle cx="32" cy="40" r="2.2" fill="${HC}"/>`),
+  STOP: panel(HC,`<path d="M40.5 13.5L50.5 23.5V40.5L40.5 50.5H23.5L13.5 40.5V23.5L23.5 13.5z" fill="none" stroke="${HC}" stroke-width="3"/><text x="32" y="37.5" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="13" fill="${HC}">STOP</text>`),
+  LIMIT: panel(HC,`<circle cx="32" cy="32" r="17" fill="none" stroke="${HC}" stroke-width="3.4"/><text x="32" y="39" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="18" fill="${HC}">50</text>`),
+  SPARE: panel(FC,`<circle cx="30" cy="34" r="14" fill="none" stroke="${FC}" stroke-width="3.4"/><circle cx="30" cy="34" r="5" fill="none" stroke="${FC}" stroke-width="2.6"/>${ln('M43 15l3 3 6-7',FC,3)}`),
+  ROLL: panel(FC,`<text x="32" y="41" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="24" fill="${FC}">GO</text>${ln('M14 46h36',FC,2.4)}`),
+  ACE: panel(SC,`<circle cx="32" cy="34" r="14" fill="none" stroke="${SC}" stroke-width="3.4"/><circle cx="32" cy="34" r="3.5" fill="${SC}"/>${ln('M18 35h10M36 35h10M32 38v10',SC,3)}<path d="M32 8l2 4 4.5.6-3.3 3.1.8 4.5-4-2.1-4 2.1.8-4.5-3.3-3.1 4.5-.6z" fill="${SC}"/>`),
+  ROW: panel(SC,`<path d="M21 44V33a11 11 0 0 1 22 0v11" fill="none" stroke="${SC}" stroke-width="3.4"/>${ln('M17 46h30',SC,3.4)}${ln('M32 12v6M17 18l4 4M47 18l-4 4',SC,2.6)}`),
+  D25: odo(25), D200: odo(200),
+};
+
+/* Option C: Pip the car mascot */
+const pip=(x,y,s,col,o={})=>`<g transform="translate(${x} ${y}) scale(${s})">
+  ${o.speed?ln('M-10 14h8M-13 20h10M-9 26h7',o.speed,2.4):''}
+  <path d="M2 24c0-7 4-10 10-11l6-9h20l6 9c6 1 10 4 10 11v6H2z" fill="${col}" stroke="${K}" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M20 6h16l4 7H16z" fill="#dff1ff" stroke="${K}" stroke-width="1"/>
+  <circle cx="23" cy="20" r="${o.squint?1.6:4}" fill="#fff" stroke="${K}" stroke-width="1"/><circle cx="35" cy="20" r="${o.squint?1.6:4}" fill="#fff" stroke="${K}" stroke-width="1"/>
+  ${o.squint?'':`<circle cx="${o.look||24}" cy="20.5" r="1.8" fill="${K}"/><circle cx="${(o.look||24)+12}" cy="20.5" r="1.8" fill="${K}"/>`}
+  <path d="${o.sad?'M24 29q5-4 10 0':'M24 27q5 4 10 0'}" fill="none" stroke="${K}" stroke-width="1.6" stroke-linecap="round"/>
+  ${o.flat?`<ellipse cx="13" cy="32.5" rx="6.5" ry="2.6" fill="${K}"/>`:`<circle cx="13" cy="30" r="5" fill="${K}"/><circle cx="13" cy="30" r="2" fill="#ccc"/>`}
+  <circle cx="45" cy="30" r="5" fill="${K}"/><circle cx="45" cy="30" r="2" fill="#ccc"/>
+  ${o.tear?`<path d="M38 22c1.5 2.5 2 3.5 2 4.2a2 2 0 0 1-4 0c0-.7.5-1.7 2-4.2z" fill="#6fb7ff"/>`:''}
+  ${o.top||''}</g>`;
+const PC='#f2c94c';
+const C={
+  ACC: `${pip(4,16,1,PC,{squint:1,sad:1})}<g fill="#f2c94c" stroke="${K}" stroke-width=".8">${[[14,12],[30,8],[46,13]].map(([x,y])=>`<path d="M${x} ${y-4}l1.2 2.8 3 .3-2.3 2 .7 3-2.6-1.6-2.6 1.6.7-3-2.3-2 3-.3z"/>`).join('')}</g><rect x="44" y="28" width="12" height="4" rx="1" fill="#fff" stroke="${K}" stroke-width=".8" transform="rotate(-20 50 30)"/>`,
+  FLAT: `${pip(4,18,1,PC,{sad:1,flat:1,tear:1})}${ln('M6 52q4-3 8 0',`#8a919c`,1.6)}<text x="44" y="16" font-family="Nunito,sans-serif" font-weight="900" font-style="italic" font-size="9" fill="#8a919c">pfff</text>`,
+  STOP: `${pip(14,22,.85,PC,{sad:1,look:22})}<path d="M14.7 4.6L20.4 10.3V18.3L14.7 24H6.7L1 18.3V10.3L6.7 4.6z" fill="${R}" stroke="#fff" stroke-width="1.2"/><text x="10.7" y="17" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="6.3" fill="#fff">STOP</text>${ln('M10.7 24v18',`#8a919c`,2)}`,
+  LIMIT: `${pip(4,24,.85,PC,{sad:1})}${TURTLE.replace('<ellipse','<g transform="translate(36 6) scale(1.1)"><ellipse')+'</g>'}<circle cx="13" cy="13" r="10" fill="#fff" stroke="${R}" stroke-width="3"/><text x="13" y="17" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="10" fill="${K}">50</text>`,
+  SPARE: `${pip(4,20,1,PC,{})}<g fill="#f2c94c">${[[10,10],[22,6]].map(([x,y])=>`<path d="M${x} ${y-4}l1 3 3 1-3 1-1 3-1-3-3-1 3-1z"/>`).join('')}</g><circle cx="13" cy="50" r="7" fill="none" stroke="${FC}" stroke-width="2"/>`,
+  ROLL: `${pip(10,20,.95,PC,{speed:'#8a919c',look:26})}<rect x="50" y="2" width="11" height="24" rx="3" fill="${K}"/><circle cx="55.5" cy="8" r="3" fill="#3a3e47"/><circle cx="55.5" cy="19" r="3.4" fill="#3fd17f"/>`,
+  ACE: `${pip(4,24,1,PC,{})}<path d="M22 22l4-9 6 6 6-6 4 9z" fill="#f2c94c" stroke="${K}" stroke-width="1.2" transform="translate(-1 2)"/><circle cx="32" cy="10" r="2" fill="${R}"/>`,
+  ROW: `${pip(4,24,1,PC,{top:'<path d="M23 4V0a6 6 0 0 1 12 0v4z" fill="#3b7bff" stroke="#1c1e23" stroke-width="1"/>'})}${ln('M33 6v6M18 14l4 3M48 14l-4 3',R,2.4)}`,
+  D25: `<g transform="translate(4 16) scale(2.5)">${TURTLE}</g>`,
+  D200: `<g transform="translate(6 12) scale(2.4)">${ROCKET}</g>${ln('M2 50h10M4 56h14',`#f2c94c`,2.4)}`,
+};
+
+const KIND=c=>META[c].k;
+function newCard(c, art){
+  const m=META[c], dist=m.k==='dist';
+  if (dist){
+    const big=String(m.n).split('').map((d,i)=>`<span style="color:${DIGITS[m.n][i]}">${d}</span>`).join('');
+    return `<div class="card k-dist"><div class="face"><span class="idx">${m.n}</span><svg class="art" viewBox="0 0 64 64">${art}</svg><div class="big" style="font-size:34cqw">${big}</div><div class="km">KM · ${m.n<=50?'TURTLE':'ROCKET'}</div></div></div>`;
+  }
+  return `<div class="card k-${m.k}"><div class="face"><span class="idx">${IDX2[c]}</span><div class="ft" style="text-transform:uppercase">${m.nm}</div><svg class="art" viewBox="0 0 64 64">${art}</svg><div class="nm fr2">${FR[c]}</div><div class="chip">${BAND[m.k]}</div></div></div>`;
+}
+const opts=[
+  {name:'Current design (in use)', desc:'What the game uses today, drawn to follow the original cards closely.', list:[], cards:SAMPLE.map(c=>cardHTML(c))},
+  {name:'Option A · Real road signs', desc:'Every card is a real-world road sign. Hazards are red warning triangles, remedies are round blue instruction signs, safeties are green shields, and distance cards are green highway signs. The English name is the title; the French name moves underneath.',
+   list:['Most distinct from the original while still feeling like a road trip.','Easy for kids to read: real signs they see from the car.','Distance creatures change from the original animals to a scale of speed (turtle for slow cards, rocket for the 200).'],
+   cards:SAMPLE.map(c=>newCard(c,A[c]))},
+  {name:'Option B · Dashboard lights', desc:'Each card is a glowing warning light from a car dashboard: red for hazards, green for remedies, gold for safeties. Distance cards are odometer readouts.',
+   list:['Sleek, modern look; very different from the original.','Less colour on the card faces, so cards are told apart by the glow colour and icon.','Odometer makes the km values easy to add up.'],
+   cards:SAMPLE.map(c=>newCard(c,B2[c]))},
+  {name:'Option C · Pip the car', desc:'A friendly cartoon car called Pip appears on every card: dizzy after an accident, sad with a flat tire, wearing a crown as the Driving Ace, with a siren for Right of Way.',
+   list:['Most fun for an 8–12-year-old, and gives the game its own character.','Clearly original artwork.','Busier pictures; the icon meaning relies a little more on the card title.'],
+   cards:SAMPLE.map(c=>newCard(c,C[c]))},
+];
+document.getElementById('out').innerHTML=opts.map(o=>`<section class="opt"><h2>${o.name}</h2><p>${o.desc}</p>${o.list.length?`<ul>${o.list.map(x=>`<li>${x}</li>`).join('')}</ul>`:''}<div class="grid">${o.cards.join('')}</div></section>`).join('');
+</script></body></html>
