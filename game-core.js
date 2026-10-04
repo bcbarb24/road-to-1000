@@ -290,6 +290,8 @@ function loadJSON(k){ try{ return JSON.parse(load(k)||'null'); }catch(e){ return
 function toast(t){ const el=$('toast'); el.textContent=t; el.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>el.hidden=true,3500); }
 
 /* ---------- Shared rendering ---------- */
+const DISCLAIMER='Road to 1000 is an independent fan project inspired by Mille Bornes. It is not affiliated with or endorsed by Dujardin, Asmodee or Hasbro. Mille Bornes is a trademark of its owner.';
+function disclaimerHTML(){ return `<p class="disclaimer">${DISCLAIMER}</p>`; }
 function rulesHTML(){
   return `<details class="rules"><summary>How to play</summary><ul>
   <li>Race your car to exactly <b>1000 km</b>. Each turn: draw a card, then play one card or throw one away.</li>

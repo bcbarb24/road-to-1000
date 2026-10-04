@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Bowlby+One&family=Nunito:ital,wght@0,500;0,700;0,800;0,900;1,600&display=swap">
-<link rel="stylesheet" href="../game.css?v=5">
+<link rel="stylesheet" href="../game.css?v=6">
 <style>
 .who-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:.9rem}
 .who-bar b{color:#fff}
@@ -49,10 +49,10 @@ details.hand summary{cursor:pointer;font-weight:800}
 <body>
 <div class="wrap" id="app"></div>
 <div class="toast" id="toast" hidden></div>
-<script src="../game-core.js?v=5"></script>
+<script src="../game-core.js?v=6"></script>
 <script>
 /* ---------- Road to 1000: members version (sign-in, tracked games, stats, admin) ---------- */
-const APP_VERSION='M1';
+const APP_VERSION='M1.1';
 const SUPABASE_URL='https://qhvaigvblkflcbrkijkj.supabase.co';
 const SUPABASE_KEY='sb_publishable_TyWdsDuLaw-LhdF0pHBSlA_zbIKJTWb';   // publishable key: safe in the browser, access is controlled by database rules
 const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -363,7 +363,7 @@ function authHTML(){
     ${googleOn?`<button class="btn" data-act="google">Continue with Google</button><div class="or">or</div>`:''}
     <div class="field"><label for="email"><b>Email</b></label><input id="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com"></div>
     <button class="btn ${googleOn?'dark':''}" data-act="send-link" ${busy?'disabled':''}>${busy?'Sending…':'Email me a sign-in link'}</button>${err}
-    <p style="margin:0;color:var(--muted);font-size:.85rem">Only approved emails can sign in. No password needed. Want to play without an account? Use the <a href="../" style="color:var(--paint)">family and friends version</a>.</p></div>`;
+    <p style="margin:0;color:var(--muted);font-size:.85rem">Only approved emails can sign in. No password needed. Want to play without an account? Use the <a href="../" style="color:var(--paint)">family and friends version</a>.</p></div>${disclaimerHTML()}`;
 }
 function whoBar(){
   return `<div class="who-bar"><span>Signed in as <b>${esc(me.display_name)}</b> · ${esc(me.email)} ${me.is_admin?'<span class="pill admin">Admin</span>':''}</span>
@@ -392,7 +392,7 @@ function homeHTML(){
     <div class="choice"><h2>Practice vs Robo</h2><p>Play against the computer to learn the cards. Not saved to stats.</p><button class="btn dark" data-act="go-local">${local && local.phase!=='lobby' ? 'Continue practice' : 'Start practice'}</button></div>
   </div>
   <div class="navrow"><button class="btn dark" data-act="stats">My stats and history</button>${me.is_admin?`<button class="btn dark" data-act="admin">Admin: players and approvals</button>`:''}</div>
-  ${rulesHTML()}<p class="ver">Members ${APP_VERSION} · game ${typeof GOAL!=='undefined'?'core v5':''}</p>`;
+  ${rulesHTML()}${disclaimerHTML()}<p class="ver">Members ${APP_VERSION}</p>`;
 }
 function backBar(title){ return `<div class="top"><span class="brand">${title}</span><button class="ghost" data-act="home">Back</button></div>`; }
 function handsTable(hands, names, opts={}){
