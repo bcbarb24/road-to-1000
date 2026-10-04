@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#23252a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="robots" content="noindex">
+<title>Road to 1000 Members</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Bowlby+One&family=Nunito:ital,wght@0,500;0,700;0,800;0,900;1,600&display=swap">
+<link rel="stylesheet" href="../game.css?v=5">
+<style>
+.who-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:.9rem}
+.who-bar b{color:#fff}
+.box{background:var(--asphalt-2);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.box h2{font-size:1.2rem}
+.glist{display:flex;flex-direction:column;gap:8px}
+.gitem{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--asphalt);border-radius:12px;padding:10px 12px}
+.gitem .t{font-weight:800;min-width:0}
+.gitem .s{color:var(--muted);font-size:.85rem;font-weight:600}
+.gitem .row{gap:8px}
+.tablewrap{overflow-x:auto;border-radius:12px;border:1px solid var(--line)}
+.dtable{width:100%;border-collapse:collapse;font-size:.88rem;font-variant-numeric:tabular-nums;min-width:36rem}
+.dtable th{text-align:left;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:900;padding:8px 10px;background:var(--asphalt);position:sticky;top:0}
+.dtable td{padding:8px 10px;border-top:1px solid var(--line);vertical-align:top}
+.dtable td.n{text-align:right}
+.dtable tr.click{cursor:pointer}
+.dtable tr.click:hover td{background:rgba(242,201,76,.06)}
+.addrow{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.addrow .field{flex:1;min-width:12rem}
+.addrow label.chk{display:flex;gap:6px;align-items:center;font-weight:800;padding-bottom:12px}
+.pill{display:inline-block;font-size:.7rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;border-radius:999px;padding:2px 8px;background:var(--asphalt-3);color:#dfe2e8}
+.pill.admin{background:rgba(242,201,76,.2);color:var(--paint)}
+.pill.play{background:rgba(35,145,90,.25);color:#7be0a6}
+.pill.done{background:rgba(127,168,255,.2);color:#a9c3ff}
+.pill.gone{background:rgba(210,58,46,.2);color:#ff8f85}
+.authcard{max-width:30rem;margin:0 auto;width:100%}
+.or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.8rem;font-weight:800}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+.hlog{margin:6px 0 0;padding-left:1.6rem;color:#cfd3da;font-size:.85rem;display:flex;flex-direction:column;gap:2px}
+details.hand{background:var(--asphalt);border-radius:12px;padding:10px 12px}
+details.hand summary{cursor:pointer;font-weight:800}
+.navrow{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="toast" id="toast" hidden></div>
+<script src="../game-core.js?v=5"></script>
+<script>
+/* ---------- Road to 1000: members version (sign-in, tracked games, stats, admin) ---------- */
+const APP_VERSION='M1';
+const SUPABASE_URL='https://qhvaigvblkflcbrkijkj.supabase.co';
+const SUPABASE_KEY='sb_publishable_TyWdsDuLaw-LhdF0pHBSlA_zbIKJTWb';   // publishable key: safe in the browser, access is controlled by database rules
+const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth:{ flowType:'implicit', persistSession:true, detectSessionInUrl:true, autoRefreshToken:true } }) : null;
+const PAGE_URL = location.origin + location.pathname;
+
+let view='loading';        // loading | signin | sent | blocked | name | error | app
+let page='home';           // home | stats | admin | game  (when not at the table)
+let mode=null;             // null (pages) | 'local' | 'pass' | 'online'
+let session=null, me=null, authMsg='', sentTo='', googleOn=false, authedFor;
+let local=null, pass=loadJSON('rt1000m-pass'), passView=null, online=null;
+let busy=false, showLog=false, sel=-1, aiTimer=null, joinErr='', confirmKey='';
+let game=null, chan=null, peerHere=false, netStatus='idle', writeQ=Promise.resolve(), lastMoveId=0;
+let myGames=[], statsData=null, adminData=null, detail=null;
+const uid=()=>session?.user?.id||null;
+const ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const newCode=()=>Array.from({length:4},()=>ALPHA[Math.floor(Math.random()*ALPHA.length)]).join('');
+const when=d=>d?new Date(d).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—';
+const num=n=>Number(n||0).toLocaleString();
+
+function state(){ return mode==='local' ? local : mode==='pass' ? pass : online; }
+function mySeat(s){
+  if (mode==='local') return 'A';
+  if (mode==='pass') return passView;
+  if (!s?.seats) return null;
+  return ['A','B'].find(x=>s.seats[x]?.key===uid()) || null;
+}
+function nameOf(seat, s){
+  s = s || state();
+  if (mode==='local') return seat==='A' ? 'You' : 'Robo';
+  return s?.seats?.[seat]?.name || (seat==='A'?'Player 1':'Player 2');
+}
+function fmt(text, s){
+  const me_=mySeat(s);
+  return esc(text||'').replace(/%([AB])/g,(_,x)=> x===me_ ? 'You' : esc(nameOf(x,s)));
+}
+
+/* ---------- Sign-in ---------- */
+async function initAuth(){
+  if (!sb){ view='error'; authMsg='Could not load the sign-in service. Check your internet and reload the page.'; render(); return; }
+  const hp=new URLSearchParams(location.hash.slice(1));
+  if (hp.get('error_description')) authMsg=hp.get('error_description').replace(/\+/g,' ');
+  fetch(SUPABASE_URL+'/auth/v1/settings',{headers:{apikey:SUPABASE_KEY}}).then(r=>r.json()).then(d=>{ googleOn=!!d?.external?.google; render(); }).catch(()=>{});
+  sb.auth.onAuthStateChange((_ev,s)=>{ session=s; setTimeout(afterAuth,0); });
+  const {data}=await sb.auth.getSession(); session=data.session; afterAuth();
+}
+async function afterAuth(){
+  const id=uid(); if (id===authedFor) return; authedFor=id;
+  if (/access_token|error_description/.test(location.hash)) history.replaceState(null,'',location.pathname);
+  if (!id){ me=null; leaveGame(); view='signin'; render(); return; }
+  view='loading'; render();
+  const {data,error}=await sb.rpc('ensure_profile',{p_name:''});
+  if (error){ view=/not_approved/.test(error.message)?'blocked':'error'; authMsg=error.message; render(); return; }
+  me=data; view = me.display_name ? 'app' : 'name'; render();
+  if (view==='app') loadHome();
+}
+async function sendLink(){
+  const email=($('email')?.value||'').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ authMsg='Enter a valid email address.'; render(); return; }
+  busy=true; authMsg=''; render();
+  const {error}=await sb.auth.signInWithOtp({email, options:{emailRedirectTo:PAGE_URL}});
+  busy=false;
+  if (error){
+    authMsg = /approved list/i.test(error.message) ? 'That email is not on the approved list. Ask the game owner to add you.'
+            : /rate|seconds|too many/i.test(error.message) ? 'Too many sign-in emails were sent. Wait a few minutes and try again.'
+            : 'Could not send the email: '+error.message;
+    render(); return;
+  }
+  sentTo=email; view='sent'; render();
+}
+async function saveName(){
+  const name=($('dname')?.value||'').trim().slice(0,20);
+  if (!name){ toast('Type the name other players will see.'); return; }
+  const {data,error}=await sb.rpc('ensure_profile',{p_name:name});
+  if (error){ toast('Could not save your name: '+error.message); return; }
+  me=data; view='app'; page='home'; render(); loadHome();
+}
+async function signOut(){ leaveGame(); mode=null; await sb.auth.signOut(); }
+
+/* ---------- Online play through Supabase (host's device runs the rules) ---------- */
+function statusOf(s){ return s.phase==='lobby'?'lobby' : s.phase==='play'?'play' : s.champion?'finished':'over'; }
+function leaveGame(){ if (chan){ try{ sb.removeChannel(chan); }catch(e){} } chan=null; game=null; peerHere=false; netStatus='idle'; }
+async function hostGame(){
+  for (let i=0;i<6;i++){
+    const st={...blankTable(), seats:{A:{key:uid(),name:me.display_name}}};
+    const {data,error}=await sb.rpc('create_game',{p_code:newCode(),p_state:st});
+    if (!error){ openGame(data); return; }
+    if (!/duplicate|unique/i.test(error.message)){ toast('Could not start a game: '+error.message); return; }
+  }
+  toast('Could not find a free game code. Try again.');
+}
+async function joinGame(raw){
+  const code=(raw||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4);
+  if (code.length!==4){ joinErr='Game codes have 4 letters or numbers.'; render(); return; }
+  joinErr=''; busy=true; render();
+  const {data,error}=await sb.rpc('join_game',{p_code:code});
+  busy=false;
+  if (error){
+    joinErr = /no_game/.test(error.message) ? `No open game with code ${code}. Check the code with the host.`
+            : /game_full/.test(error.message) ? 'That game already has two players.' : 'Could not join: '+error.message;
+    render(); return;
+  }
+  openGame(data);
+}
+async function continueGame(id){
+  const {data,error}=await sb.from('games').select('*').eq('id',id).single();
+  if (error||!data){ toast('Could not open that game.'); loadHome(); return; }
+  openGame(data);
+}
+function openGame(row){
+  leaveGame();
+  game={id:row.id, code:row.code, role:row.host_id===uid()?'host':'guest', host_id:row.host_id, guest_id:row.guest_id};
+  online=row.state; online.rev=row.rev; lastMoveId=online.lastMove||0;
+  mode='online'; sel=-1; showLog=false; netStatus='starting'; render(); window.scrollTo(0,0);
+  chan=sb.channel('game:'+row.id,{config:{presence:{key:uid()}}})
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'games',filter:'id=eq.'+row.id},p=>onGameRow(p.new))
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'moves',filter:'game_id=eq.'+row.id},p=>onMove(p.new))
+    .on('presence',{event:'sync'},()=>{ peerHere=Object.keys(chan?.presenceState()||{}).some(k=>k!==uid()); render(); })
+    .subscribe(async st=>{
+      if (st==='SUBSCRIBED'){ netStatus='live'; try{ await chan.track({at:Date.now()}); }catch(e){} syncGame(); render(); }
+      else if (st==='CHANNEL_ERROR'||st==='TIMED_OUT'){ netStatus='lost'; render(); }
+    });
+  syncGame();
+}
+async function syncGame(){
+  if (!game) return;
+  const g=game;
+  const {data:row}=await sb.from('games').select('state,rev,guest_id,status').eq('id',g.id).single();
+  if (!row || game!==g) return;
+  if (row.status==='abandoned'){ toast('This game was ended by the host.'); leaveGame(); mode=null; page='home'; render(); loadHome(); return; }
+  g.guest_id=row.guest_id;
+  if (g.role==='guest'){ if (row.rev>(online?.rev??-1)){ online=row.state; online.rev=row.rev; render(); } return; }
+  if (row.guest_id && !online.seats.B) await seatGuest(row.guest_id);
+  const {data:moves}=await sb.from('moves').select('*').eq('game_id',g.id).gt('id',lastMoveId).order('id');
+  for (const m of moves||[]) onMove(m);
+}
+function onGameRow(row){
+  if (!game || row.id!==game.id) return;
+  game.guest_id=row.guest_id;
+  if (row.status==='abandoned' && game.role==='guest'){ toast('This game was ended by the host.'); leaveGame(); mode=null; page='home'; render(); loadHome(); return; }
+  if (game.role==='guest'){ if (row.rev>(online?.rev??-1)){ online=row.state; online.rev=row.rev; render(); } }
+  else if (row.guest_id && !online.seats.B) seatGuest(row.guest_id);
+}
+async function seatGuest(id){
+  if (online.seats.B || seatGuest.busy) return;
+  seatGuest.busy=true;
+  let data=null;
+  try{ ({data}=await sb.from('player_names').select('display_name').eq('id',id).maybeSingle()); }catch(e){}
+  finally{ seatGuest.busy=false; }
+  if (online.seats.B) return;
+  const n=clone(online); n.seats.B={key:id,name:data?.display_name||'Player 2'}; hostCommit(n);
+}
+function onMove(m){
+  if (!game || game.role!=='host' || m.id<=lastMoveId) return;
+  lastMoveId=m.id;
+  const guest=online.seats.B?.key;
+  if (!guest || m.player_id!==guest) return;       // host's own moves are only history
+  const a=m.action||{}; let n;
+  if (a.t==='deal'){ if (online.phase==='play'||online.champion) return; n=dealHand(online); }
+  else if (a.t==='newgame'){ if (!online.champion) return; n=newGame(online); }
+  else { n=apply(online,'B',a); if (n===online) n=clone(online); }   // invalid move: re-send state so the guest resyncs
+  n.lastMove=m.id; hostCommit(n);
+}
+function hostCommit(n){
+  const prev=online; n.rev=(online?.rev||0)+1; n.lastMove=Math.max(n.lastMove||0,lastMoveId); online=n; render();
+  const st=statusOf(n), g=game;
+  const handDone = prev && prev.phase==='play' && n.phase==='over';
+  writeQ=writeQ.then(async()=>{
+    const {error}=await sb.from('games').update({state:n, rev:n.rev, status:st,
+      winner_id: n.champion ? n.seats[n.champion]?.key||null : null,
+      finished_at: st==='finished' ? new Date().toISOString() : null}).eq('id',g.id);
+    if (error) toast('Could not save the game: '+error.message);
+    if (handDone){
+      const A=n.seats.A.key, Bk=n.seats.B.key;
+      const fin = n.players.A.miles===GOAL ? A : n.players.B.miles===GOAL ? Bk : null;
+      const {error:e2}=await sb.from('hands').insert({game_id:g.id, hand_no:n.handNo, host_id:A, guest_id:Bk,
+        host_points:n.result.A.total, guest_points:n.result.B.total, host_km:n.players.A.miles, guest_km:n.players.B.miles,
+        finished_by:fin, details:{result:n.result, totals:n.totals, log:n.log}});
+      if (e2 && !/duplicate/i.test(e2.message)) toast('Could not record the hand: '+e2.message);
+    }
+  });
+}
+function recordMove(a){
+  if (!game) return;
+  sb.from('moves').insert({game_id:game.id, hand_no:online?.handNo||0, action:a}).then(({error})=>{
+    if (error && game?.role==='guest'){ toast('Could not send your move. Check your connection.'); syncGame(); }
+  });
+}
+function act(a){
+  const s=state(), seat=mySeat(s);
+  if (!s || !seat) return;
+  const n=apply(s,seat,a);
+  if (n===s) return;
+  sel=-1;
+  if (mode==='local'){ local=n; render(); return; }
+  if (mode==='pass'){ pass=n; if (n.phase==='play' && n.turn!==seat) passView=null; save('rt1000m-pass',pass); render(); window.scrollTo(0,0); return; }
+  if (game.role==='host'){ hostCommit(n); recordMove(a); return; }
+  online=n; render(); recordMove(a);
+}
+function dealOrNew(kind){
+  if (mode==='local'){ local = kind==='deal' ? dealHand(local) : newGame(local); render(); return; }
+  if (mode==='pass'){ pass = kind==='deal' ? dealHand(pass) : newGame(pass); passView=null; save('rt1000m-pass',pass); render(); window.scrollTo(0,0); return; }
+  if (game.role==='host'){ if (!online.seats.B){ toast('Wait for the other player to join first.'); return; } hostCommit(kind==='deal'?dealHand(online):newGame(online)); recordMove({t:kind}); return; }
+  recordMove({t:kind});
+}
+async function endGame(id){
+  const {error}=await sb.from('games').update({status:'abandoned'}).eq('id',id);
+  if (error){ toast('Could not end the game: '+error.message); return; }
+  if (game?.id===id){ leaveGame(); mode=null; }
+  page='home'; render(); loadHome();
+}
+setInterval(()=>{ if (mode==='online' && game && document.visibilityState==='visible') syncGame(); },15000);
+document.addEventListener('visibilitychange',()=>{ if (document.visibilityState==='visible' && mode==='online') syncGame(); });
+
+/* ---------- Data for pages ---------- */
+async function loadHome(){
+  const {data}=await sb.from('games').select('id,code,status,host_id,guest_id,updated_at,state->seats')
+    .in('status',['lobby','play','over']).order('updated_at',{ascending:false}).limit(20);
+  myGames=(data||[]).filter(g=>g.host_id===uid()||g.guest_id===uid());
+  render();
+}
+async function loadStats(){
+  statsData=null; render();
+  const [{data:rows},{data:hands},{data:names}]=await Promise.all([
+    sb.from('player_stats').select('*').eq('id',uid()),
+    sb.from('hands').select('id,game_id,hand_no,host_id,guest_id,host_points,guest_points,host_km,guest_km,finished_by,completed_at').order('completed_at',{ascending:false}).limit(25),
+    sb.from('player_names').select('id,display_name')]);
+  statsData={me:rows?.[0]||null, hands:(hands||[]).filter(h=>h.host_id===uid()||h.guest_id===uid()), names:Object.fromEntries((names||[]).map(r=>[r.id,r.display_name]))};
+  render();
+}
+async function loadAdmin(){
+  adminData=null; render();
+  const [{data:allow},{data:players},{data:games},{data:handRows}]=await Promise.all([
+    sb.from('allowed_emails').select('*').order('added_at'),
+    sb.from('player_stats').select('*').order('last_played',{ascending:false,nullsFirst:false}),
+    sb.from('games').select('id,code,status,host_id,guest_id,winner_id,created_at,updated_at,finished_at').order('created_at',{ascending:false}).limit(50),
+    sb.from('hands').select('game_id')]);
+  const handCount={}; for (const h of handRows||[]) handCount[h.game_id]=(handCount[h.game_id]||0)+1;
+  adminData={allow:allow||[], players:players||[], games:games||[], handCount,
+    names:Object.fromEntries((players||[]).map(p=>[p.id,p.display_name||p.email]))};
+  render();
+}
+async function loadGameDetail(id){
+  detail={id, loading:true}; page='game'; render(); window.scrollTo(0,0);
+  const [{data:g},{data:hands},{count}]=await Promise.all([
+    sb.from('games').select('id,code,status,host_id,guest_id,winner_id,created_at,finished_at,state->totals').eq('id',id).single(),
+    sb.from('hands').select('*').eq('game_id',id).order('hand_no'),
+    sb.from('moves').select('id',{count:'exact',head:true}).eq('game_id',id)]);
+  detail={id, game:g, hands:hands||[], moves:count||0};
+  render();
+}
+async function addAllowed(){
+  const email=($('newEmail')?.value||'').trim().toLowerCase(), note=($('newNote')?.value||'').trim().slice(0,60), isAdmin=!!$('newAdmin')?.checked;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('Enter a valid email address.'); return; }
+  const {error}=await sb.from('allowed_emails').insert({email, note:note||null, is_admin:isAdmin});
+  if (error){ toast(/duplicate/i.test(error.message)?'That email is already approved.':'Could not add: '+error.message); return; }
+  $('newEmail').value=''; $('newNote').value=''; toast(`Approved ${email}. They can sign in now.`); loadAdmin();
+}
+async function removeAllowed(email){
+  const {error}=await sb.from('allowed_emails').delete().eq('email',email);
+  if (error){ toast('Could not remove: '+error.message); return; }
+  confirmKey=''; toast(`Removed ${email}. They can no longer sign in or play.`); loadAdmin();
+}
+
+/* ---------- Rendering ---------- */
+function render(){
+  const app=$('app'), keep={}, focus=document.activeElement?.id;
+  app.querySelectorAll('input[id]').forEach(i=>{ keep[i.id]= i.type==='checkbox' ? i.checked : i.value; });
+  let html;
+  if (view!=='app') html=authHTML();
+  else if (!mode) html = page==='admin' ? adminHTML() : page==='stats' ? statsHTML() : page==='game' ? gameDetailHTML() : homeHTML();
+  else if (mode==='online' && (!online || online.phase==='lobby')) html=lobbyHTML();
+  else if (mode==='pass' && pass.phase==='play' && passView!==pass.turn) html=coverHTML(pass);
+  else { if (mode==='pass' && !passView) passView='A'; html=tableHTML(state()); }
+  app.innerHTML=html;
+  for (const [id,v] of Object.entries(keep)){ const i=$(id); if (!i) continue; if (i.type==='checkbox') i.checked=v; else if (!i.value) i.value=v; }
+  if (focus && $(focus)) $(focus).focus();
+  scheduleAI();
+}
+function connPill(){
+  if (mode!=='online' || !game) return '';
+  const them=esc(game.role==='host' ? (online?.seats?.B?.name||'player 2') : (online?.seats?.A?.name||'the host'));
+  let c='wait', t='Connecting…';
+  if (netStatus==='lost'){ c='stop'; t='Reconnecting…'; }
+  else if (netStatus==='live'){ if (peerHere){ c='go'; t='Connected'; } else t = game.role==='host' ? `Waiting for ${them}` : `${them} is away`; }
+  return `<span class="status ${c}">${t}</span>`;
+}
+function topBar(){
+  return `<div class="top"><span class="brand">Road to 1000</span><span class="row" style="align-items:center;gap:8px">${connPill()}<button class="ghost" data-act="home">Menu</button></span></div>`;
+}
+function brandHead(sub){
+  return `<div class="hero" style="padding-block:10px 0">${borne(1000).replace('<svg','<svg role="img" aria-label="Kilometre marker"')}<h1>Road to 1000</h1><p>${sub}</p></div>`;
+}
+function authHTML(){
+  const err = authMsg ? `<div class="err">${esc(authMsg)}</div>` : '';
+  if (view==='loading') return brandHead('Members version')+`<div class="note">Signing you in…</div>`;
+  if (view==='error') return brandHead('Members version')+`<div class="box authcard"><div class="err">${esc(authMsg||'Something went wrong.')}</div><button class="btn" data-act="reload">Reload</button></div>`;
+  if (view==='blocked') return brandHead('Members version')+`<div class="box authcard"><h2>This email isn't approved yet</h2>
+    <p style="margin:0;color:var(--muted)">You're signed in as <b style="color:#fff">${esc(session?.user?.email||'')}</b>, but that address isn't on the list of approved players. Ask the game owner to add it, then sign in again.</p>
+    <button class="btn dark" data-act="signout">Sign out</button></div>`;
+  if (view==='name') return brandHead('Welcome!')+`<div class="box authcard"><h2>What should other players call you?</h2>
+    <div class="field"><label for="dname"><b>Your name</b></label><input id="dname" maxlength="20" autocomplete="nickname" placeholder="e.g. Uncle Brian"></div>
+    <button class="btn green" data-act="save-name">Save and continue</button></div>`;
+  if (view==='sent') return brandHead('Members version')+`<div class="box authcard"><h2>Check your email</h2>
+    <p style="margin:0;color:var(--muted)">We sent a sign-in link to <b style="color:#fff">${esc(sentTo)}</b>. Open it on this device to sign in. It can take a minute to arrive, and it may land in spam.</p>
+    <button class="ghost" data-act="use-other">Use a different email</button></div>`;
+  return brandHead('Members version. Sign in with an approved email to play and keep your stats.')+`<div class="box authcard">
+    ${googleOn?`<button class="btn" data-act="google">Continue with Google</button><div class="or">or</div>`:''}
+    <div class="field"><label for="email"><b>Email</b></label><input id="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com"></div>
+    <button class="btn ${googleOn?'dark':''}" data-act="send-link" ${busy?'disabled':''}>${busy?'Sending…':'Email me a sign-in link'}</button>${err}
+    <p style="margin:0;color:var(--muted);font-size:.85rem">Only approved emails can sign in. No password needed. Want to play without an account? Use the <a href="../" style="color:var(--paint)">family and friends version</a>.</p></div>`;
+}
+function whoBar(){
+  return `<div class="who-bar"><span>Signed in as <b>${esc(me.display_name)}</b> · ${esc(me.email)} ${me.is_admin?'<span class="pill admin">Admin</span>':''}</span>
+    <span class="row" style="gap:8px"><button class="ghost" data-act="edit-name">Change name</button><button class="ghost" data-act="signout">Sign out</button></span></div>`;
+}
+function homeHTML(){
+  const games = myGames.length ? `<div class="box"><h2>Your games in progress</h2><div class="glist">${myGames.map(g=>{
+      const host=g.host_id===uid(), seats=g.seats||{}, opp=host?seats.B?.name:seats.A?.name;
+      const ck='end:'+g.id;
+      return `<div class="gitem"><span class="t">Game ${esc(g.code)} ${opp?'vs '+esc(opp):'<span class="s">(waiting for a player)</span>'}<br><span class="s">${g.status==='lobby'?'Not started':g.status==='over'?'Between hands':'In play'} · last move ${when(g.updated_at)}</span></span>
+        <span class="row"><button class="btn green" data-act="continue" data-id="${g.id}">Continue</button>${host?(confirmKey===ck?`<button class="btn red" data-act="end-game" data-id="${g.id}">Yes, end it</button><button class="ghost" data-act="cancel">Keep</button>`:`<button class="ghost" data-act="ask-end" data-id="${g.id}">End</button>`):''}</span></div>`;
+    }).join('')}</div></div>` : '';
+  return whoBar()+brandHead('Members version')+games+`
+  <div class="choices">
+    <div class="choice"><h2>Play online</h2><p>Each player signs in on their own device. One hosts and shares the 4-letter code; the other joins with it. Every hand is saved to your stats.</p>
+      <button class="btn" data-act="host">Host a game</button>
+      <div class="joinrow"><label for="code" class="sr">Game code</label><input id="code" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="CODE"><button class="btn green" data-act="join" ${busy?'disabled':''}>Join</button></div>
+      ${joinErr?`<div class="err">${esc(joinErr)}</div>`:''}
+    </div>
+    <div class="choice"><h2>Pass and play</h2><p>Two players share one device. Not saved to stats.</p>
+      <div class="field"><label for="p1"><b>Player 1</b></label><input id="p1" maxlength="20" autocomplete="off" placeholder="e.g. Uncle Brian"></div>
+      <div class="field"><label for="p2"><b>Player 2</b></label><input id="p2" maxlength="20" autocomplete="off" placeholder="e.g. Ava"></div>
+      <button class="btn" data-act="go-pass">Start pass and play</button>
+      ${pass && pass.phase && pass.phase!=='lobby' && !pass.champion ? `<button class="btn dark" data-act="resume-pass">Continue ${esc(pass.seats?.A?.name||'')} vs ${esc(pass.seats?.B?.name||'')}</button>` : ''}
+    </div>
+    <div class="choice"><h2>Practice vs Robo</h2><p>Play against the computer to learn the cards. Not saved to stats.</p><button class="btn dark" data-act="go-local">${local && local.phase!=='lobby' ? 'Continue practice' : 'Start practice'}</button></div>
+  </div>
+  <div class="navrow"><button class="btn dark" data-act="stats">My stats and history</button>${me.is_admin?`<button class="btn dark" data-act="admin">Admin: players and approvals</button>`:''}</div>
+  ${rulesHTML()}<p class="ver">Members ${APP_VERSION} · game ${typeof GOAL!=='undefined'?'core v5':''}</p>`;
+}
+function backBar(title){ return `<div class="top"><span class="brand">${title}</span><button class="ghost" data-act="home">Back</button></div>`; }
+function handsTable(hands, names, opts={}){
+  if (!hands.length) return `<div class="note">No finished hands yet. Hands are saved when one ends.</div>`;
+  const nm=id=>esc(names[id]||'Unknown');
+  return `<div class="tablewrap"><table class="dtable"><thead><tr><th>When</th>${opts.mine?'<th>Opponent</th><th class="n">You</th><th class="n">Them</th>':'<th>Host</th><th class="n">Pts</th><th>Guest</th><th class="n">Pts</th>'}<th>Reached 1000</th></tr></thead><tbody>
+  ${hands.map(h=>{
+    const iAmHost=h.host_id===uid();
+    const cells = opts.mine
+      ? `<td>${nm(iAmHost?h.guest_id:h.host_id)}</td><td class="n">${num(iAmHost?h.host_points:h.guest_points)}</td><td class="n">${num(iAmHost?h.guest_points:h.host_points)}</td>`
+      : `<td>${nm(h.host_id)}</td><td class="n">${num(h.host_points)}</td><td>${nm(h.guest_id)}</td><td class="n">${num(h.guest_points)}</td>`;
+    return `<tr class="click" data-act="game-open" data-id="${h.game_id}"><td>${when(h.completed_at)}</td>${cells}<td>${h.finished_by?nm(h.finished_by):'Nobody'}</td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+function statsHTML(){
+  if (!statsData) return backBar('My stats')+`<div class="note">Loading…</div>`;
+  const m=statsData.me||{};
+  const tile=(l,v)=>`<div class="seat"><span class="lbl">${l}</span><span class="who">${v}</span></div>`;
+  return backBar('My stats')+`<div class="seats" style="grid-template-columns:repeat(auto-fit,minmax(9rem,1fr))">
+    ${tile('Hands played',num(m.hands_played))}${tile('Hands won',num(m.hands_won))}${tile('Trips to 1000',num(m.trips_completed))}
+    ${tile('Games won',num(m.games_won))}${tile('Total points',num(m.total_points))}${tile('Total km',num(m.total_km))}</div>
+    <div class="box"><h2>Recent hands</h2>${handsTable(statsData.hands, statsData.names, {mine:true})}<span class="s" style="color:var(--muted);font-size:.85rem">Tap a hand to see the whole game.</span></div>`;
+}
+function adminHTML(){
+  if (!me.is_admin) return backBar('Admin')+`<div class="note">Only admins can see this page.</div>`;
+  if (!adminData) return backBar('Admin')+`<div class="note">Loading…</div>`;
+  const d=adminData, signedUp=new Set(d.players.map(p=>p.email));
+  const allow=`<div class="box"><h2>Approved emails (${d.allow.length})</h2>
+    <p style="margin:0;color:var(--muted);font-size:.9rem">Only these addresses can sign in. Removing someone stops them signing in or playing; their past games stay in the history.</p>
+    <div class="addrow"><div class="field"><label for="newEmail"><b>Email</b></label><input id="newEmail" type="email" placeholder="friend@example.com"></div>
+      <div class="field"><label for="newNote"><b>Note (optional)</b></label><input id="newNote" maxlength="60" placeholder="e.g. Ava's mom"></div>
+      <label class="chk"><input id="newAdmin" type="checkbox"> Admin</label><button class="btn green" data-act="allow-add">Approve</button></div>
+    <div class="tablewrap"><table class="dtable"><thead><tr><th>Email</th><th>Note</th><th>Signed up</th><th>Added</th><th></th></tr></thead><tbody>
+    ${d.allow.map(a=>{ const ck='rm:'+a.email, self=a.email===me.email;
+      return `<tr><td>${esc(a.email)} ${a.is_admin?'<span class="pill admin">Admin</span>':''}</td><td>${esc(a.note||'')}</td><td>${signedUp.has(a.email)?'Yes':'Not yet'}</td><td>${when(a.added_at)}</td>
+      <td>${self?'<span class="s" style="color:var(--muted)">You</span>':confirmKey===ck?`<button class="btn red" data-act="allow-remove" data-email="${esc(a.email)}">Remove</button> <button class="ghost" data-act="cancel">Keep</button>`:`<button class="ghost" data-act="ask-remove" data-email="${esc(a.email)}">Remove</button>`}</td></tr>`; }).join('')}
+    </tbody></table></div></div>`;
+  const players=`<div class="box"><h2>Players (${d.players.length})</h2><div class="tablewrap"><table class="dtable"><thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Last seen</th><th>Last played</th><th class="n">Hands</th><th class="n">Won</th><th class="n">Games won</th><th class="n">Points</th></tr></thead><tbody>
+    ${d.players.map(p=>`<tr><td>${esc(p.display_name||'—')}</td><td>${esc(p.email)}</td><td>${when(p.created_at)}</td><td>${when(p.last_seen_at)}</td><td>${when(p.last_played)}</td><td class="n">${num(p.hands_played)}</td><td class="n">${num(p.hands_won)}</td><td class="n">${num(p.games_won)}</td><td class="n">${num(p.total_points)}</td></tr>`).join('')}
+    </tbody></table></div></div>`;
+  const pill=s=>`<span class="pill ${s==='play'||s==='over'?'play':s==='finished'?'done':s==='abandoned'?'gone':''}">${s==='over'?'between hands':s}</span>`;
+  const games=`<div class="box"><h2>Recent games</h2><div class="tablewrap"><table class="dtable"><thead><tr><th>Started</th><th>Code</th><th>Host</th><th>Guest</th><th>Status</th><th class="n">Hands</th><th>Winner</th></tr></thead><tbody>
+    ${d.games.map(g=>`<tr class="click" data-act="game-open" data-id="${g.id}"><td>${when(g.created_at)}</td><td>${esc(g.code)}</td><td>${esc(d.names[g.host_id]||'—')}</td><td>${esc(d.names[g.guest_id]||'—')}</td><td>${pill(g.status)}</td><td class="n">${d.handCount[g.id]||0}</td><td>${esc(d.names[g.winner_id]||'')}</td></tr>`).join('')}
+    </tbody></table></div><span style="color:var(--muted);font-size:.85rem">Tap a game to see every hand and its play-by-play.</span></div>`;
+  return backBar('Admin')+allow+players+games;
+}
+function gameDetailHTML(){
+  const back=me.is_admin && adminData ? 'admin' : 'stats';
+  const bar=`<div class="top"><span class="brand">Game history</span><button class="ghost" data-act="${back}">Back</button></div>`;
+  if (!detail || detail.loading) return bar+`<div class="note">Loading…</div>`;
+  const g=detail.game; if (!g) return bar+`<div class="note">That game isn't available.</div>`;
+  const names = adminData?.names || statsData?.names || {};
+  const nm=id=>esc(names[id]||(id===uid()?me.display_name:'Unknown'));
+  const hands=detail.hands.map(h=>{
+    const r=h.details?.result||{}, log=h.details?.log||[];
+    const sub=x=>(r[x]?.items||[]).map(([l,v])=>`${esc(l)} ${num(v)}`).join(' · ');
+    const named=t=>esc(t).replace(/%A/g,nm(h.host_id)).replace(/%B/g,nm(h.guest_id));
+    return `<details class="hand"><summary>Hand ${h.hand_no}: ${nm(h.host_id)} ${num(h.host_points)} – ${num(h.guest_points)} ${nm(h.guest_id)} · ${h.finished_by?nm(h.finished_by)+' reached 1000':'nobody reached 1000'} · ${when(h.completed_at)}</summary>
+      <p style="margin:8px 0 0;color:var(--muted);font-size:.85rem">${nm(h.host_id)}: ${sub('A')}<br>${nm(h.guest_id)}: ${sub('B')}</p>
+      <ol class="hlog">${log.map(t=>`<li>${named(t)}</li>`).join('')}</ol></details>`;
+  }).join('');
+  return bar+`<div class="box"><h2>Game ${esc(g.code)}: ${nm(g.host_id)} vs ${nm(g.guest_id)}</h2>
+    <span style="color:var(--muted)">Started ${when(g.created_at)} · ${g.status==='finished'?'Winner: '+nm(g.winner_id):g.status} · ${num(detail.moves)} moves recorded${g.totals?` · Totals ${num(g.totals.A)} – ${num(g.totals.B)}`:''}</span></div>
+    ${hands||'<div class="note">No finished hands in this game yet.</div>'}`;
+}
+function lobbyHTML(){
+  const s=online, isHost=game?.role==='host', b=s?.seats?.B;
+  const link=PAGE_URL;
+  if (!isHost){
+    return topBar()+`<h2>Game ${esc(game.code)}</h2>
+      <div class="seats"><div class="seat"><span class="lbl">Host</span><span class="who">${esc(s.seats.A?.name)}</span></div><div class="seat"><span class="lbl">You</span><span class="who">${b?esc(b.name):'Joining…'}</span></div></div>
+      ${b?`<div class="note">You're in! Either of you can deal.</div><button class="btn green" data-act="deal">Deal the cards</button>`:`<div class="note">Waiting for the host's device to seat you. Make sure they have the game open.</div>`}${rulesHTML()}`;
+  }
+  return topBar()+`<h2>Your game</h2>
+    <div class="codebox"><span class="lbl">Game code</span><span class="code">${esc(game.code)}</span><span class="hint">The other player signs in at this link, then joins with the code:</span><span class="link">${esc(link)}</span><button class="ghost" data-act="copy">Copy invite</button></div>
+    <div class="seats"><div class="seat"><span class="lbl">Player 1 (you)</span><span class="who">${esc(s.seats.A?.name)}</span></div><div class="seat"><span class="lbl">Player 2</span><span class="who">${b?esc(b.name)+(peerHere?'':' (away)'):'Not here yet'}</span></div></div>
+    ${b?`<div class="note">Both players are here. Either of you can deal.</div><button class="btn green" data-act="deal">Deal the cards</button>`:`<div class="note">Waiting for them to sign in, enter the code, and tap Join. Keep this page open.</div>`}
+    ${rulesHTML()}`;
+}
+
+/* ---------- Events ---------- */
+document.addEventListener('click', e=>{
+  const el=e.target.closest('[data-act]'); if (!el || el.disabled) return;
+  const a=el.dataset.act, id=el.dataset.id;
+  if (a==='reload') return location.reload();
+  if (a==='send-link') return sendLink();
+  if (a==='google') return sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:PAGE_URL}});
+  if (a==='use-other'){ view='signin'; authMsg=''; render(); return; }
+  if (a==='save-name') return saveName();
+  if (a==='edit-name'){ view='name'; render(); const d=$('dname'); if (d) d.value=me.display_name; return; }
+  if (a==='signout') return signOut();
+  if (a==='home'){ if (mode==='online') leaveGame(); mode=null; page='home'; sel=-1; confirmKey=''; render(); loadHome(); window.scrollTo(0,0); return; }
+  if (a==='stats'){ mode=null; page='stats'; render(); loadStats(); window.scrollTo(0,0); return; }
+  if (a==='admin'){ mode=null; page='admin'; render(); loadAdmin(); window.scrollTo(0,0); return; }
+  if (a==='game-open') return loadGameDetail(id);
+  if (a==='host') return hostGame();
+  if (a==='join') return joinGame($('code')?.value);
+  if (a==='continue') return continueGame(id);
+  if (a==='ask-end'){ confirmKey='end:'+id; render(); return; }
+  if (a==='end-game') return endGame(id);
+  if (a==='ask-remove'){ confirmKey='rm:'+el.dataset.email; render(); return; }
+  if (a==='allow-remove') return removeAllowed(el.dataset.email);
+  if (a==='allow-add') return addAllowed();
+  if (a==='cancel'){ confirmKey=''; render(); return; }
+  if (a==='copy'){
+    const text=`Let's play Road to 1000! Sign in at ${PAGE_URL} and join my game with code ${game?.code}`;
+    navigator.clipboard?.writeText(text).then(()=>toast('Invite copied. Paste it in a text message.'),()=>toast('Copy failed. The code is '+game?.code));
+    return;
+  }
+  if (a==='go-pass'){
+    const n1=($('p1')?.value||'').trim().slice(0,20), n2=($('p2')?.value||'').trim().slice(0,20);
+    if (!n1 || !n2){ toast('Type both players\' names first.'); (!n1?$('p1'):$('p2'))?.focus(); return; }
+    mode='pass'; passView=null;
+    pass=dealHand({...blankTable(), seats:{A:{key:'p1',name:n1},B:{key:'p2',name:n2}}});
+    save('rt1000m-pass',pass); render(); window.scrollTo(0,0); return;
+  }
+  if (a==='resume-pass'){ if (pass){ mode='pass'; passView=null; render(); window.scrollTo(0,0); } return; }
+  if (a==='reveal'){ if (mode==='pass'){ passView=pass.turn; sel=-1; render(); window.scrollTo(0,0); } return; }
+  if (a==='go-local'){ mode='local'; if (!local || local.phase==='lobby') local=dealHand(blankTable()); render(); return; }
+  if (a==='log'){ showLog=!showLog; render(); return; }
+  if (a==='pick'){ const i=+el.dataset.i; sel = sel===i ? -1 : i; render(); return; }
+  if (a==='draw') return act({t:'draw'});
+  if (a==='coup') return act({t:'coup'});
+  if (a==='play') return act({t:'play',i:sel});
+  if (a==='discard') return act({t:'discard',i:sel});
+  if (a==='deal' || a==='newgame') return dealOrNew(a);
+});
+document.addEventListener('keydown', e=>{
+  if (e.key==='Enter'){
+    if (e.target.id==='email') return sendLink();
+    if (e.target.id==='dname') return saveName();
+    if (e.target.id==='code') return joinGame(e.target.value);
+    if (e.target.id==='newEmail' || e.target.id==='newNote') return addAllowed();
+  }
+  const el=e.target.closest?.('[role=button][data-act]');
+  if (el && (e.key==='Enter' || e.key===' ')){ e.preventDefault(); el.click(); }
+});
+document.addEventListener('input', e=>{ if (e.target.id==='code') e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); });
+
+render();
+initAuth();
+</script>
+</body>
+</html>

@@ -17,7 +17,18 @@ If someone refreshes or loses connection, open the link again and tap **Rejoin**
 
 The relays are public: anyone who knew your 4-letter game code could, in principle, watch or interfere with that game. Codes are random and only game moves are sent, so this is fine for family games, but don't use it for anything private.
 
-## Pass and play (one device)
+## Members version (sign-in, stats and history)
+
+**https://bcbarb24.github.io/road-to-1000/members/**
+
+The same game, but players sign in with an approved email and every online game is saved: each hand's score breakdown and play-by-play, every move, and per-player stats. Admins get a page to approve or remove emails and to browse players, stats and game history. It runs on [Supabase](https://supabase.com) (sign-in, database and live updates); the database setup is in [`supabase/schema.sql`](supabase/schema.sql).
+
+- Only emails on the approved list can create an account (a sign-up hook rejects everyone else), and the database's row-level security rules limit what each signed-in player can see or change. Anonymous visitors can't read or write anything.
+- The key in `members/index.html` is Supabase's *publishable* key, which is meant to be public; the security rules are what protect the data.
+- `supabase/schema.sql` **drops and recreates the tables**: running it again erases the approved list and all history. Make later changes with a separate migration.
+- In an online game the host's device applies the rules and saves the state, so a host could in principle tamper with their own game. Fine among family and friends; not for competitive play.
+
+
 
 Two players share one iPad or phone. Tap **Pass and play** on the home screen and enter both names. Between turns a cover screen says whose turn it is and hides the cards; the next player taps **Show my cards** when they're holding the device. The game is saved on the device, so you can close the page and pick it up later with **Continue**.
 
@@ -41,6 +52,6 @@ Two players share one iPad or phone. Tap **Pass and play** on the home screen an
 
 ## Project
 
-Everything is in a single `index.html`: no build step. To run locally, open the file in a browser or serve the folder (`python3 -m http.server`).
+No build step. `game-core.js` (cards, rules, computer player, table rendering) and `game.css` are shared by the family version (`index.html`, public relays) and the members version (`members/index.html`, Supabase). To run locally, open the file in a browser or serve the folder (`python3 -m http.server`).
 
 Card artwork is original, drawn in SVG in the style of the classic game.
