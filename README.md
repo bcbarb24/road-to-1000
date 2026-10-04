@@ -30,7 +30,12 @@ Two players share one iPad or phone. Tap **Pass and play** on the home screen an
 - Race to exactly **1000 km**. Each turn, draw a card, then play one or throw one away.
 - Play **Roll** (green light) before you can drive, then distance cards (25–200 km; max two 200s per hand).
 - **Hazards** (Accident, Out of Gas, Flat Tire, Stop, Speed Limit) slow your opponent; **Remedies** fix them.
-- **Safeties** give permanent protection and an extra turn. Holding the matching safety when you're attacked lets you call **coup fourré** for a bonus.
+- **Safeties** protect you for the rest of the hand, and playing one gives you an extra turn. There is one of each:
+  - **Driving Ace** (*As du volant*): no more Accidents.
+  - **Extra Tank** (*Citerne d'essence*): no more Out of Gas.
+  - **Puncture-Proof** (*Increvable*): no more Flat Tires.
+  - **Right of Way** (*Véhicule prioritaire*): no more Stops or Speed Limits, and you never need a Roll card to drive.
+- **Coup fourré:** if someone plays a hazard on you while you hold the safety that blocks it, play that safety at the start of your next turn. It cancels the hazard and earns a 300-point bonus on top of the safety's 100.
 - Standard scoring: 1 point per km, 100 per safety, 300 for all four, 300 per coup fourré, 400 for finishing, and bonuses for a delayed action, a safe trip and a shutout. First to 5000 points wins.
 
 ## Project
