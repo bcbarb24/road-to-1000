@@ -172,7 +172,7 @@ details.rules ul{padding-left:1.1rem;margin:.6rem 0 0;display:grid;gap:6px;max-w
 .codebox .link{font-weight:800;word-break:break-all}
 </style>
 
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 </head>
 <body>
 <div class="wrap" id="app"></div>
@@ -444,7 +444,7 @@ let mode=null;            // null (home) | 'local' | 'online'
 let local=null;           // practice game state
 let online=null;          // shared table state (the host owns the real copy)
 let busy=false, showLog=false, sel=-1, aiTimer=null, joinErr='';
-const net={role:null, code:'', peer:null, conn:null, status:'idle', msg:'', retry:null, tries:0};
+const net={role:null, code:'', clients:[], status:'idle', msg:'', hostRev:-1, everUp:false, presence:new Map(), seen:new Set(), timer:null, timer2:null};
 const $ = id => document.getElementById(id);
 const esc = t => String(t??'').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 function save(k,v){ try{ v==null ? localStorage.removeItem(k) : localStorage.setItem(k, typeof v==='string'?v:JSON.stringify(v)); }catch(e){} }
@@ -475,25 +475,61 @@ function fmt(text, s){
 function toast(t){ const el=$('toast'); el.textContent=t; el.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>el.hidden=true,3500); }
 function myName(){ const v=($('nm')?.value||load('rt1000-name')||'').trim().slice(0,20); if (v) save('rt1000-name',v); return v; }
 
-/* ---------- Networking (device to device, via PeerJS) ---------- */
-const PREFIX='roadto1000-';
+/* ---------- Networking (public MQTT relays over secure websockets; no accounts) ---------- */
+// Every message goes through two independent public relays at once, so either one being down is fine.
+const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081/mqtt'];
 const ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const newCode=()=>Array.from({length:4},()=>ALPHA[Math.floor(Math.random()*ALPHA.length)]).join('');
+const rid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36);
+const topic=k=>`roadto1000/v2/${net.code}/${k}`;
+const linkUp=()=>net.clients.some(c=>c.connected);
 function setStatus(st,msg=''){ net.status=st; net.msg=msg; render(); }
+function updateStatus(){
+  if (!net.role) return;
+  const peerHere=[...net.presence.values()].some(Boolean);
+  let st;
+  if (!linkUp()) st = net.everUp ? 'lost' : (net.status==='error' ? 'error' : 'starting');
+  else if (net.role==='host') st = peerHere ? 'connected' : 'waiting';
+  else st = !online ? (net.status==='error' ? 'error' : 'starting') : peerHere ? 'connected' : 'waiting';
+  if (st!==net.status || (st!=='error' && net.msg)){ net.status=st; if (st!=='error') net.msg=''; render(); }
+}
 function shutdown(){
-  clearTimeout(net.retry);
-  try{ net.conn?.close(); }catch(e){}
-  try{ net.peer?.destroy(); }catch(e){}
-  Object.assign(net,{role:null,code:'',peer:null,conn:null,status:'idle',msg:'',tries:0});
+  clearTimeout(net.timer); clearTimeout(net.timer2);
+  for (const c of net.clients){ try{ if (c.connected) c.publish(topic(net.role==='host'?'hostp':'guestp'),'0',{retain:true,qos:1}); c.end(false); }catch(e){} }
+  Object.assign(net,{role:null,code:'',clients:[],status:'idle',msg:'',hostRev:-1,everUp:false});
+  net.presence=new Map(); net.seen=new Set();
+}
+function connectAll(onMsg,onConnect){
+  if (typeof mqtt==='undefined'){ setStatus('error','Could not load the connection library. Check your internet and reload the page.'); return; }
+  const mine = net.role==='host'?'hostp':'guestp', theirs = net.role==='host'?'guestp':'hostp';
+  const subs = [topic(net.role==='host'?'up':'down'), topic(theirs)];
+  net.clients = BROKERS.map(url=>{
+    const c=mqtt.connect(url,{clientId:'rt1000_'+rid(),clean:true,reconnectPeriod:3000,connectTimeout:10000,keepalive:30,
+      will:{topic:topic(mine),payload:'0',retain:true,qos:1}});
+    c.on('connect',()=>{ net.everUp=true; c.subscribe(subs,{qos:1}); c.publish(topic(mine),'1',{retain:true,qos:1}); onConnect(c); updateStatus(); });
+    c.on('message',(t,buf)=>{
+      const s=buf.toString();
+      if (t===topic(theirs)){ net.presence.set(c, s==='1'); updateStatus(); return; }
+      let d; try{ d=JSON.parse(s); }catch(e){ return; }
+      if (d && typeof d==='object') onMsg(d);
+    });
+    for (const ev of ['close','offline']) c.on(ev,()=>{ net.presence.set(c,false); updateStatus(); });
+    c.on('error',()=>{});
+    return c;
+  });
+  net.timer=setTimeout(()=>{ if (!linkUp()) setStatus('error','Could not reach the game relay. Check your internet connection. It will keep trying.'); },12000);
+}
+function publishAll(k,obj,retain=false){
+  const s=JSON.stringify(obj);
+  for (const c of net.clients){ try{ c.publish(topic(k),s,{qos:1,retain}); }catch(e){} }
 }
 function hostCommit(n){
   n.rev=(online?.rev||0)+1; online=n;
   save('rt1000-host',{code:net.code,state:online});
-  if (net.conn?.open) net.conn.send({t:'state',state:online});
+  publishAll('down',{t:'state',state:online},true);
   render();
 }
 function startHost(code, saved){
-  if (typeof Peer==='undefined'){ toast('Could not load the connection library. Check your internet and reload.'); return; }
   const name=myName();
   shutdown();
   mode='online'; net.role='host'; net.code=code;
@@ -501,89 +537,44 @@ function startHost(code, saved){
   if (name && online.seats.A) online.seats.A.name=name;
   save('rt1000-host',{code,state:online}); save('rt1000-guest',null);
   setStatus('starting');
-  const peer=new Peer(PREFIX+code); net.peer=peer;
-  peer.on('open',()=>{ net.tries=0; setStatus(net.conn?.open?'connected':'waiting'); });
-  peer.on('connection',conn=>{
-    conn.on('data',d=>hostReceive(conn,d));
-    conn.on('close',()=>{ if (net.conn===conn){ net.conn=null; if (net.role==='host') setStatus('waiting'); } });
-  });
-  peer.on('disconnected',()=>{ if (net.role==='host' && !peer.destroyed) setTimeout(()=>{ try{ peer.reconnect(); }catch(e){} },1500); });
-  peer.on('error',err=>{
-    if (net.peer!==peer) return;
-    if (err.type==='unavailable-id'){
-      if (!saved){ startHost(newCode()); return; }
-      if (net.tries++<10){ setStatus('starting','Getting your table back…'); net.retry=setTimeout(()=>startHost(code,online),3000); return; }
-      setStatus('error','That game code is still in use. Start a new game instead.'); return;
-    }
-    if (err.type==='network' || err.type==='server-error' || err.type==='socket-error' || err.type==='socket-closed'){
-      setStatus('error','Lost touch with the connection service. Check your internet; it will keep trying.');
-      net.retry=setTimeout(()=>{ try{ peer.reconnect(); }catch(e){} },4000); return;
-    }
-  });
+  connectAll(hostReceive, c=>c.publish(topic('down'),JSON.stringify({t:'state',state:online}),{qos:1,retain:true}));
 }
-function hostReceive(conn,d){
-  if (!d || typeof d!=='object') return;
+function hostReceive(d){
+  if (d.id){ if (net.seen.has(d.id)) return; net.seen.add(d.id); if (net.seen.size>500) net.seen=new Set([...net.seen].slice(-200)); }
   if (d.t==='hello'){
-    const b=online.seats.B;
-    if (b && b.key!==d.key){ conn.send({t:'full'}); setTimeout(()=>conn.close(),500); return; }
-    if (net.conn && net.conn!==conn){ try{ net.conn.close(); }catch(e){} }
-    net.conn=conn;
-    const n=clone(online); n.seats.B={key:String(d.key).slice(0,60), name:String(d.name||'Player 2').slice(0,20)};
-    setStatus('connected'); hostCommit(n); return;
+    const b=online.seats.B, key=String(d.key||'').slice(0,60);
+    if (!key) return;
+    if (b && b.key!==key){ publishAll('down',{t:'full',key}); return; }
+    const n=clone(online); n.seats.B={key, name:String(d.name||'Player 2').slice(0,20)};
+    hostCommit(n); return;
   }
-  if (conn!==net.conn) return;
-  if (d.t==='act'){ const n=apply(online,'B',d.a||{}); if (n!==online) hostCommit(n); else conn.send({t:'state',state:online}); return; }
+  if (d.t==='act'){ const n=apply(online,'B',d.a||{}); hostCommit(n!==online ? n : clone(online)); return; }
   if (d.t==='deal' && online.phase!=='play' && !online.champion && online.seats.B){ hostCommit(dealHand(online)); return; }
   if (d.t==='newgame' && online.champion){ hostCommit(newGame(online)); return; }
 }
 function startGuest(code){
-  if (typeof Peer==='undefined'){ toast('Could not load the connection library. Check your internet and reload.'); return; }
   code=(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4);
   if (code.length!==4){ joinErr='Game codes have 4 letters or numbers.'; render(); return; }
   const name=myName();
   if (!name){ joinErr='Type your name first.'; render(); $('nm')?.focus(); return; }
   joinErr=''; shutdown();
-  mode='online'; net.role='guest'; net.code=code; online=null;
+  mode='online'; net.role='guest'; net.code=code; online=null; net.hostRev=-1;
   save('rt1000-guest',{code}); save('rt1000-host',null);
   setStatus('starting');
-  const peer=new Peer(); net.peer=peer;
-  peer.on('open',()=>guestConnect());
-  peer.on('disconnected',()=>{ if (net.role==='guest' && !peer.destroyed) setTimeout(()=>{ try{ peer.reconnect(); }catch(e){} },1500); });
-  peer.on('error',err=>{
-    if (net.peer!==peer) return;
-    if (err.type==='peer-unavailable'){
-      if (online){ guestRetry(); return; }
-      setStatus('error',`No game found with code ${code}. Check the code, and make sure the host has the game open.`); return;
-    }
-    if (err.type==='network' || err.type==='server-error' || err.type==='socket-error' || err.type==='socket-closed') guestRetry();
-  });
+  connectAll(guestReceive, c=>c.publish(topic('up'),JSON.stringify({t:'hello',key:myKey,name,id:rid()}),{qos:1}));
+  net.timer2=setTimeout(()=>{ if (!online && net.role==='guest' && linkUp()) setStatus('error',`No game found with code ${code}. Check the code, and make sure the host has the game open.`); },10000);
 }
-function guestConnect(){
-  if (net.role!=='guest' || !net.peer || net.peer.destroyed) return;
-  const conn=net.peer.connect(PREFIX+net.code,{reliable:true}); net.conn=conn;
-  const timer=setTimeout(()=>{ if (!conn.open && net.conn===conn){ setStatus('error','Could not reach the host. Make sure they have the game open. Some mobile and school networks block direct connections; try Wi-Fi.'); guestRetry(); } },12000);
-  conn.on('open',()=>{ clearTimeout(timer); net.tries=0; conn.send({t:'hello',key:myKey,name:myName()||'Player 2'}); setStatus('connected'); });
-  conn.on('data',d=>{
-    if (d?.t==='state'){ online=d.state; render(); }
-    else if (d?.t==='full'){ setStatus('error','That game already has two players.'); shutdown(); mode='online'; net.status='error'; net.msg='That game already has two players.'; render(); }
-  });
-  conn.on('close',()=>{ clearTimeout(timer); if (net.conn===conn && net.role==='guest'){ net.conn=null; guestRetry(); } });
-}
-function guestRetry(){
-  if (net.role!=='guest') return;
-  clearTimeout(net.retry);
-  if (net.status!=='error') setStatus('lost');
-  net.retry=setTimeout(()=>{
-    if (net.role!=='guest') return;
-    if (!net.peer || net.peer.destroyed){ startGuest(net.code); return; }
-    if (net.peer.disconnected){ try{ net.peer.reconnect(); }catch(e){} }
-    guestConnect();
-  },3000);
+function guestReceive(d){
+  if (d.t==='state' && d.state && (d.state.rev||0)>net.hostRev){
+    net.hostRev=d.state.rev||0; online=d.state;
+    if (net.status==='error'){ net.status='starting'; net.msg=''; }
+    updateStatus(); render(); return;
+  }
+  if (d.t==='full' && d.key===myKey){ setStatus('error','That game already has two players.'); }
 }
 document.addEventListener('visibilitychange',()=>{
   if (document.visibilityState!=='visible') return;
-  if (net.peer?.disconnected){ try{ net.peer.reconnect(); }catch(e){} }
-  if (net.role==='guest' && !net.conn?.open) guestRetry();
+  for (const c of net.clients) if (!c.connected){ try{ c.reconnect(); }catch(e){} }
 });
 
 function act(a){
@@ -594,14 +585,14 @@ function act(a){
   sel=-1;
   if (mode==='local'){ local=n; render(); return; }
   if (net.role==='host'){ hostCommit(n); return; }
-  if (!net.conn?.open){ toast('Not connected right now. Reconnecting…'); return; }
+  if (!linkUp()){ toast('Not connected right now. Reconnecting…'); return; }
   online=n; render();
-  net.conn.send({t:'act',a});
+  publishAll('up',{t:'act',a,id:rid()});
 }
 function dealOrNew(kind){
   if (mode==='local'){ local = kind==='deal' ? dealHand(local) : newGame(local); render(); return; }
   if (net.role==='host'){ if (!online.seats.B){ toast('Wait for the other player to join first.'); return; } hostCommit(kind==='deal' ? dealHand(online) : newGame(online)); return; }
-  if (net.conn?.open) net.conn.send({t:kind}); else toast('Not connected right now. Reconnecting…');
+  if (linkUp()) publishAll('up',{t:kind,id:rid()}); else toast('Not connected right now. Reconnecting…');
 }
 
 /* ---------- Rendering ---------- */
@@ -618,7 +609,7 @@ function render(){
 function connPill(){
   if (mode!=='online') return '';
   const them = net.role==='host' ? (online?.seats?.B?.name||'player 2') : (online?.seats?.A?.name||'the host');
-  const map={starting:['wait','Connecting…'],waiting:['wait',`Waiting for ${esc(them)}`],connected:['go','Connected'],lost:['stop','Reconnecting…'],error:['stop','Not connected']};
+  const map={starting:['wait','Connecting…'],waiting:['wait',net.role==='host'?`Waiting for ${esc(them)}`:`${esc(them)} is away`],connected:['go','Connected'],lost:['stop','Reconnecting…'],error:['stop','Not connected']};
   const [c,t]=map[net.status]||['wait','…'];
   return `<span class="status ${c}">${t}</span>`;
 }
@@ -667,7 +658,7 @@ function lobbyHTML(){
   return topBar()+`<h2>Your game</h2>
     <div class="codebox"><span class="lbl">Game code</span><span class="code">${esc(net.code)}</span><span class="hint">Send the other player this link and code:</span><span class="link">${esc(link)}</span><button class="ghost" data-act="copy">Copy invite</button></div>
     ${net.status==='error'?`<div class="note">${esc(net.msg)}</div>`:''}
-    <div class="seats"><div class="seat"><span class="lbl">Player 1 (you)</span><span class="who">${esc(s.seats.A?.name)}</span></div><div class="seat"><span class="lbl">Player 2</span><span class="who">${b?esc(b.name)+(net.conn?.open?'':' (away)'):'Not here yet'}</span></div></div>
+    <div class="seats"><div class="seat"><span class="lbl">Player 1 (you)</span><span class="who">${esc(s.seats.A?.name)}</span></div><div class="seat"><span class="lbl">Player 2</span><span class="who">${b?esc(b.name)+([...net.presence.values()].some(Boolean)?'':' (away)'):'Not here yet'}</span></div></div>
     ${b?`<div class="note">Both players are here. Either of you can deal.</div><button class="btn green" data-act="deal">Deal the cards</button>`:`<div class="note">Waiting for them to open the link, type their name and the code, and tap Join. Keep this page open.</div>`}
     ${rulesHTML()}`;
 }
@@ -753,11 +744,11 @@ document.addEventListener('click', e=>{
   if (a==='host'){ if (!myName()){ joinErr='Type your name first.'; render(); $('nm')?.focus(); return; } joinErr=''; startHost(newCode()); return; }
   if (a==='join'){ startGuest($('code')?.value); return; }
   if (a==='resume-host'){
-    if (net.role==='host' && net.peer && !net.peer.destroyed){ mode='online'; render(); return; }
+    if (net.role==='host' && net.clients.length){ mode='online'; render(); return; }
     const h=loadJSON('rt1000-host'); if (h?.code) startHost(h.code, h.state); return;
   }
   if (a==='resume-guest'){
-    if (net.role==='guest' && net.conn?.open){ mode='online'; render(); return; }
+    if (net.role==='guest' && net.clients.length){ mode='online'; render(); return; }
     const g=loadJSON('rt1000-guest'); if (g?.code) startGuest(g.code); return;
   }
   if (a==='copy'){

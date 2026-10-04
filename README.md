@@ -11,9 +11,11 @@ A two-player road race card game based on the French classic **Mille Bornes**, b
 3. The other player types their name and the code, then taps **Join**.
 4. Either player taps **Deal the cards**.
 
-The two devices connect directly to each other ([PeerJS](https://peerjs.com/) / WebRTC), so there's no server or sign-up. Keep the page open while you play. If someone refreshes or loses connection, open the link again and tap **Rejoin** (guest) or **Go back to your game** (host). The host's device holds the game, so the host should avoid clearing their browser data mid-game.
+Moves travel between the two devices through free public message relays ([HiveMQ](https://www.hivemq.com/mqtt/public-mqtt-broker/) and [Eclipse Mosquitto](https://test.mosquitto.org/), over secure WebSockets). Every message goes through both, so the game keeps working if one is down. There's no server of our own and no sign-up.
 
-Direct connections work on most home Wi-Fi. Some mobile-data, school and work networks block them; if joining fails, try both devices on Wi-Fi.
+If someone refreshes or loses connection, open the link again and tap **Rejoin** (guest) or **Go back to your game** (host). The host's device holds the game, so the host should avoid clearing their browser data mid-game.
+
+The relays are public: anyone who knew your 4-letter game code could, in principle, watch or interfere with that game. Codes are random and only game moves are sent, so this is fine for family games, but don't use it for anything private.
 
 ## Practice
 
