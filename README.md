@@ -4,6 +4,8 @@ A two-player road race card game based on the French classic **Mille Bornes**, b
 
 > **Disclaimer:** Road to 1000 is an independent fan project inspired by Mille Bornes. It is not affiliated with or endorsed by Dujardin, Asmodee or Hasbro. Mille Bornes is a trademark of its owner.
 
+Open items are tracked in [TODO.md](TODO.md).
+
 ## Two versions
 
 | | Family and friends version | Members version |
