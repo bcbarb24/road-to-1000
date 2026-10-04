@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#23252a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="description" content="A two-player road race card game based on Mille Bornes. Play on two phones or iPads with a 4-letter code.">
+<title>Road to 1000</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Bowlby+One&family=Nunito:ital,wght@0,500;0,700;0,800;0,900;1,600&display=swap">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+/* Layout: one-column card table on asphalt. Opponent on top, road in the middle, your car and hand at the bottom. Single dark "night road" look by choice. */
+:root{
+  --asphalt:#23252a; --asphalt-2:#2e3138; --asphalt-3:#3a3e47;
+  --paint:#f2c94c; --card:#fbf6ea; --ink:#1c1e23; --muted:#a3a8b3; --line:#4a4f5a;
+  --haz:#d23a2e; --fix:#23915a; --safe:#2b5cb5; --dist:#1c1e23; --cap:#d23a2e;
+  --display:"Bowlby One","Arial Black",Impact,sans-serif;
+  --cond:"Anton",Impact,"Arial Narrow",sans-serif;
+  --body:"Nunito",ui-rounded,"Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--asphalt);color:#eef0f3;font-family:var(--body);font-size:16px;padding-inline:16px;padding-block:12px 28px;box-sizing:border-box}
+*{box-sizing:border-box}
+button{font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--paint);outline-offset:2px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+h1,h2{font-family:var(--display);font-weight:400;letter-spacing:.01em;text-wrap:balance;margin:0}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.brand{font-family:var(--display);font-size:1.15rem;color:var(--paint)}
+.ghost{background:transparent;border:1px solid var(--line);color:#dfe2e8;border-radius:999px;padding:6px 14px;font-weight:700;font-size:.85rem}
+.btn{border:0;border-radius:14px;padding:14px 18px;font-weight:900;font-size:1.05rem;background:var(--paint);color:var(--ink)}
+.btn.green{background:var(--fix);color:#fff}
+.btn.red{background:var(--haz);color:#fff}
+.btn.dark{background:var(--asphalt-3);color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* Home */
+.hero{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding-block:18px 6px}
+.hero h1{font-size:clamp(2.4rem,9vw,4rem);line-height:.95;color:var(--paint)}
+.hero p{margin:0;color:var(--muted);max-width:34ch}
+.hero svg{width:84px}
+.choices{display:grid;gap:12px;grid-template-columns:1fr}
+@media (min-width:640px){.choices{grid-template-columns:1fr 1fr}}
+.choice{background:var(--asphalt-2);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:10px;color:#eef0f3;text-align:left}
+.choice h2{font-size:1.25rem}
+.choice p{margin:0;color:var(--muted);font-size:.95rem}
+.note{font-size:.88rem;color:var(--muted);background:var(--asphalt-2);border-left:4px solid var(--paint);padding:10px 12px;border-radius:8px}
+details.rules{background:var(--asphalt-2);border-radius:14px;padding:12px 16px;border:1px solid var(--line)}
+details.rules summary{font-weight:900;cursor:pointer}
+details.rules ul{padding-left:1.1rem;margin:.6rem 0 0;display:grid;gap:6px;max-width:70ch;line-height:1.45}
+.kw-h{color:#ff7a6e;font-weight:800}.kw-f{color:#5fd391;font-weight:800}.kw-s{color:#7fa8ff;font-weight:800}
+
+/* Lobby */
+.seats{display:grid;gap:12px;grid-template-columns:1fr}
+@media (min-width:640px){.seats{grid-template-columns:1fr 1fr}}
+.seat{background:var(--asphalt-2);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.seat .lbl{font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.seat .who{font-size:1.3rem;font-weight:900}
+.field{display:flex;flex-direction:column;gap:6px}
+.field input{background:var(--asphalt-2);border:1px solid var(--line);color:#fff;border-radius:12px;padding:12px;font-size:1.05rem;font-family:var(--body)}
+
+/* Player strips */
+.strip{background:var(--asphalt-2);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px;border:1px solid var(--line)}
+.strip.mine{border-color:#5a5f6b}
+.strip.turn{box-shadow:0 0 0 2px var(--paint)}
+.strip-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.pname{font-weight:900;font-size:1.05rem}
+.km{font-family:var(--display);font-size:1.5rem;color:var(--paint);font-variant-numeric:tabular-nums}
+.km small{font-family:var(--body);font-size:.8rem;color:var(--muted);font-weight:700}
+.status{font-size:.9rem;font-weight:800;padding:3px 10px;border-radius:999px;display:inline-block}
+.status.go{background:rgba(35,145,90,.25);color:#7be0a6}
+.status.stop{background:rgba(210,58,46,.25);color:#ff8f85}
+.status.wait{background:rgba(242,201,76,.18);color:var(--paint)}
+.piles{display:flex;gap:8px;align-items:flex-end}
+.piles .slot{flex:none}
+.slot.dist{flex:1;min-width:0;align-items:flex-start}
+.dstacks{display:flex;align-items:flex-start;gap:10px;width:100%;min-height:calc(3.6rem * 1.4)}
+.dstack{position:relative;flex:0 1 3.6rem;min-width:0}
+.dstack .card.mini{width:100%}
+.dstack.multi .card{box-shadow:3px 3px 0 #d9d3c4,6px 6px 0 #a9a394}
+.dstack .cnt{position:absolute;bottom:-6px;right:-8px;background:var(--paint);color:var(--ink);font-weight:900;font-size:.72rem;border-radius:999px;padding:1px 6px;letter-spacing:0;z-index:1}
+.dstacks .empty{width:auto;flex:1;max-width:12rem;aspect-ratio:auto;height:calc(3.6rem * 1.4)}
+.extras{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.slot{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.68rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.empty{width:3.6rem;aspect-ratio:5/7;border:2px dashed var(--line);border-radius:8px;display:grid;place-items:center;text-align:center;font-size:.6rem;padding:3px;color:var(--muted)}
+.backs{display:flex;gap:3px;align-items:center;color:var(--muted);font-size:.8rem;font-weight:700}
+.backs i{width:12px;height:17px;border-radius:2px;background:repeating-linear-gradient(45deg,var(--cap) 0 3px,#a32c22 3px 6px);display:inline-block}
+
+/* Road */
+.road{background:#1a1c20;border-radius:14px;padding:10px 12px 6px;display:flex;flex-direction:column;gap:6px}
+.lane{position:relative;height:34px;background:var(--asphalt-3);border-radius:6px;background-image:repeating-linear-gradient(90deg,var(--paint) 0 14px,transparent 14px 30px);background-size:100% 2px;background-repeat:no-repeat;background-position:0 50%}
+.car{position:absolute;top:2px;width:44px;height:30px;transition:left .8s cubic-bezier(.3,.8,.3,1)}
+.flag{position:absolute;right:2px;top:6px;width:20px;height:20px;background:conic-gradient(#fff 0 25%,#111 0 50%,#fff 0 75%,#111 0) 0 0/10px 10px;border-radius:2px}
+.ticks{display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted);font-weight:800;font-variant-numeric:tabular-nums;padding:0 2px}
+
+/* Middle */
+.mid{display:flex;gap:12px;align-items:center}
+.deck{width:4.4rem;flex:none;position:relative;border:0;padding:0;background:none}
+.deck .count{position:absolute;bottom:-6px;right:-6px;background:var(--paint);color:var(--ink);border-radius:999px;font-size:.75rem;font-weight:900;padding:1px 7px}
+.deck.pulse .back{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{transform:translateY(-4px) rotate(-2deg);box-shadow:0 0 0 4px var(--paint)}}
+.msg{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.msg .big{font-weight:900;font-size:1.05rem;line-height:1.25}
+.msg .small{color:var(--muted);font-size:.88rem}
+.event{background:rgba(242,201,76,.12);border:1px solid rgba(242,201,76,.35);color:#ffe8a0;padding:10px 14px;border-radius:12px;font-size:.92rem;display:flex;flex-direction:column;gap:6px}
+.ev-title{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;font-weight:900;color:var(--paint)}
+.plays{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:3px;color:#d9cfa6;font-weight:600}
+.plays li.now{color:#fff3c4;font-weight:900}
+.plays.recent{list-style:none;padding-left:0}
+.plays.all{padding-left:2.4rem;font-variant-numeric:tabular-nums;max-height:14rem;overflow:auto;border-top:1px solid rgba(242,201,76,.25);padding-top:6px}
+.linkish{background:none;border:0;color:var(--paint);font-weight:800;padding:0;text-align:left;text-decoration:underline;font-size:.85rem}
+.coup{background:var(--safe);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.coup b{font-family:var(--display);font-weight:400;font-size:1.3rem}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row .btn{flex:1;min-width:8rem}
+
+/* Hand */
+.hand{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media (min-width:640px){.hand{grid-template-columns:repeat(7,1fr)}}
+.actions{display:flex;gap:10px;position:sticky;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);z-index:2}
+.actions .btn{flex:1}
+
+/* Cards */
+.card{cursor:pointer;-webkit-tap-highlight-color:transparent;aspect-ratio:5/7;width:100%;background:#fffdf6;border-radius:8%/5.7%;container-type:inline-size;position:relative;padding:0;border:0;box-shadow:0 2px 0 rgba(0,0,0,.35);transition:transform .15s,box-shadow .15s;color:#1c1e23}
+.card .face{position:absolute;inset:4cqw;display:flex;flex-direction:column;align-items:center;gap:2cqw;padding:2cqw 2cqw 1cqw;text-align:center}
+.card .idx{position:absolute;top:0;left:1cqw;font-family:var(--cond);font-size:9cqw;line-height:1;color:var(--k)}
+.card .ft{font-family:var(--cond);font-size:10.5cqw;line-height:1;text-transform:uppercase;color:var(--k);letter-spacing:.02em;min-height:21cqw;display:flex;align-items:center;justify-content:center;padding:0 8cqw}
+.k-safe .ft{text-transform:none;font-family:var(--body);font-style:italic;font-weight:900;color:#1c1e23;font-size:10cqw}
+.card .art{flex:1;min-height:0;width:100%;display:block}
+.card .nm{font-weight:900;font-size:10.5cqw;line-height:1.05}
+.card .chip{font-size:6.5cqw;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#fff;background:var(--k);border-radius:99px;padding:1cqw 5cqw}
+.card .big{font-family:var(--cond);font-size:46cqw;line-height:.85;letter-spacing:-.01em}
+.card .km{font-weight:900;font-size:8cqw;letter-spacing:.14em;color:#6b7078}
+.k-haz{--k:#e0312b} .k-fix{--k:#2f8fd8} .k-safe{--k:#2e9a4a} .k-dist{--k:#1c1e23}
+@container (max-width:110px){.card .ft,.card .chip,.card .km{display:none}.card .nm{font-size:12.5cqw}.card .big{font-size:40cqw}}
+.card.mini{width:3.6rem}
+.card.mini .nm,.card.mini .idx{display:none}
+.hand .card.sel{transform:translateY(-8px);box-shadow:0 0 0 3px var(--paint),0 8px 14px rgba(0,0,0,.4)}
+.hand .card.ok::after{content:"";position:absolute;top:-5px;right:-5px;z-index:1;width:14px;height:14px;border-radius:50%;background:#3fd17f;border:2px solid var(--asphalt)}
+.back{aspect-ratio:5/7;width:100%;border-radius:9%/6.5%;background:repeating-linear-gradient(45deg,var(--cap) 0 6px,#a32c22 6px 12px);border:3px solid var(--card);display:grid;place-items:center;container-type:inline-size;transition:transform .2s}
+.back span{background:var(--card);color:var(--cap);font-family:var(--display);font-size:16cqw;padding:2cqw 5cqw;border-radius:4cqw;line-height:1}
+
+/* Results */
+.overlay{position:fixed;inset:0;background:rgba(10,11,13,.78);display:grid;place-items:center;padding:16px;z-index:10;overflow:auto}
+.panel{background:var(--asphalt-2);border:1px solid var(--line);border-radius:20px;padding:20px;max-width:560px;width:100%;display:flex;flex-direction:column;gap:14px}
+.panel h2{color:var(--paint);font-size:1.7rem}
+.scores{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.scores .col{background:var(--asphalt);border-radius:12px;padding:12px;min-width:0}
+.scores h3{margin:0 0 6px;font-size:1rem}
+.scores table{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numeric:tabular-nums}
+.scores td{padding:3px 0}.scores td:last-child{text-align:right;font-weight:800}
+.scores tr.tot td{border-top:1px solid var(--line);padding-top:6px;font-weight:900;color:var(--paint)}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 80px);background:#000;color:#fff;padding:10px 16px;border-radius:12px;font-weight:700;z-index:20;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.joinrow{display:flex;gap:8px}
+.joinrow input{flex:1;min-width:0;background:var(--asphalt);border:1px solid var(--line);color:#fff;border-radius:12px;padding:12px;font-size:1.3rem;font-family:var(--cond);letter-spacing:.2em;text-transform:uppercase}
+.joinrow .btn{flex:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.err{color:#ff8f85;font-weight:800;font-size:.9rem}
+.codebox{background:var(--asphalt-2);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.codebox .lbl{font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.codebox .code{font-family:var(--cond);font-size:4rem;letter-spacing:.18em;color:var(--paint);line-height:1}
+.codebox .hint{color:var(--muted);font-size:.9rem}
+.codebox .link{font-weight:800;word-break:break-all}
+</style>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ---------- Card data ---------- */
+const META = {
+  D25:{k:'dist',n:25,nm:'25 km',fr:'Escargot',band:'Snail'},
+  D50:{k:'dist',n:50,nm:'50 km',fr:'Canard',band:'Duck'},
+  D75:{k:'dist',n:75,nm:'75 km',fr:'Papillon',band:'Butterfly'},
+  D100:{k:'dist',n:100,nm:'100 km',fr:'Lièvre',band:'Hare'},
+  D200:{k:'dist',n:200,nm:'200 km',fr:'Hirondelle',band:'Swallow'},
+  ACC:{k:'haz',nm:'Accident',fr:'Accident',ic:'crash'},
+  OUT:{k:'haz',nm:'Out of Gas',fr:"Panne d'essence",ic:'pump'},
+  FLAT:{k:'haz',nm:'Flat Tire',fr:'Crevaison',ic:'tire'},
+  LIMIT:{k:'haz',nm:'Speed Limit',fr:'Limite de vitesse',ic:'limit'},
+  STOP:{k:'haz',nm:'Stop',fr:'Feu rouge',ic:'red'},
+  REP:{k:'fix',nm:'Repairs',fr:'Réparations',ic:'wrench'},
+  GAS:{k:'fix',nm:'Gasoline',fr:'Essence',ic:'pump'},
+  SPARE:{k:'fix',nm:'Spare Tire',fr:'Roue de secours',ic:'tire'},
+  ENDLIM:{k:'fix',nm:'End of Limit',fr:'Fin de limite',ic:'endlim'},
+  ROLL:{k:'fix',nm:'Roll',fr:'Feu vert',ic:'green'},
+  ACE:{k:'safe',nm:'Driving Ace',fr:'As du volant',ic:'wheel'},
+  TANK:{k:'safe',nm:'Extra Tank',fr:"Citerne d'essence",ic:'tank'},
+  PUNCT:{k:'safe',nm:'Puncture-Proof',fr:'Increvable',ic:'shield'},
+  ROW:{k:'safe',nm:'Right of Way',fr:'Véhicule prioritaire',ic:'siren'},
+};
+const COUNTS = {D25:10,D50:10,D75:10,D100:12,D200:4,ACC:3,OUT:3,FLAT:3,LIMIT:4,STOP:5,REP:6,GAS:6,SPARE:6,ENDLIM:6,ROLL:14,ACE:1,TANK:1,PUNCT:1,ROW:1};
+const BAND = {haz:'Hazard',fix:'Remedy',safe:'Safety'};
+const HAZ = {ACC:1,OUT:1,FLAT:1,STOP:1};
+const SAFE_FOR = {ACC:'ACE',OUT:'TANK',FLAT:'PUNCT',STOP:'ROW',LIMIT:'ROW'};
+const FIX = {ACC:'REP',OUT:'GAS',FLAT:'SPARE',STOP:'ROLL',LIMIT:'ENDLIM'};
+const GOAL = 1000, GAME_GOAL = 5000;
+
+const K='#1c1e23', R='#e0312b', B='#2f8fd8', L='#b5d334', G='#2e9a4a', W='#fff';
+const ln=(d,c=K,w=2)=>`<path d="${d}" stroke="${c}" stroke-width="${w}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+const car=(x,y,s,col,rot=0)=>`<g transform="translate(${x} ${y}) rotate(${rot}) scale(${s})"><path d="M1 17c0-4 2-6 6-6.5l7-1.5 5-6h15l6 6.5 7 1c3 .4 4 2.5 4 6V20H1z" fill="${col}" stroke="${K}" stroke-width="1.4" stroke-linejoin="round"/><path d="M20.5 5h12.5l4.5 4.6H17z" fill="#dff1ff" stroke="${K}" stroke-width="1"/><path d="M27 5v4.6" stroke="${K}" stroke-width="1"/><circle cx="13" cy="20" r="4.6" fill="${K}"/><circle cx="13" cy="20" r="1.8" fill="${W}"/><circle cx="40" cy="20" r="4.6" fill="${K}"/><circle cx="40" cy="20" r="1.8" fill="${W}"/><rect x="48" y="12" width="3" height="2.4" rx="1" fill="#ffe27a" stroke="${K}" stroke-width=".8"/></g>`;
+const lightArt=(disc,lit)=>`<circle cx="22" cy="26" r="18" fill="${disc}"/><rect x="40" y="0" width="4" height="8" fill="${K}"/><rect x="33" y="7" width="18" height="50" rx="3" fill="${K}"/>${[17,31,45].map((cy,i)=>`<circle cx="42" cy="${cy}" r="5.5" fill="${(lit==='top'&&i===0)||(lit==='bot'&&i===2)?disc:K}" stroke="${W}" stroke-width="1.2"/>`).join('')}<rect x="40" y="57" width="4" height="7" fill="${K}"/>`;
+const sign50=(ring,num,txt)=>`<rect x="40" y="30" width="3.5" height="34" fill="${K}"/><circle cx="41.5" cy="24" r="17" fill="${W}" stroke="${ring}" stroke-width="${ring===R?5.5:1.5}"/>${txt?`<text x="41.5" y="31" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="19" fill="${num}">50</text>`:''}`;
+const nBand=`<path d="M6 0h11v30L47 4h11v60H47V36L17 62H6z" fill="${G}"/>`;
+const wheelFront=(cx,cy,r,rim)=>`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${K}"/><circle cx="${cx}" cy="${cy}" r="${r*.62}" fill="${rim}" stroke="${W}" stroke-width="1.2"/><circle cx="${cx}" cy="${cy}" r="${r*.2}" fill="${W}" stroke="${K}"/>${[0,60,120].map(a=>`<path d="M${cx} ${cy-r*.58}V${cy+r*.58}" stroke="${W}" stroke-width="1" transform="rotate(${a} ${cx} ${cy})"/>`).join('')}`;
+const tireSide=(cx,cy,col,rot)=>`<g transform="rotate(${rot} ${cx} ${cy})"><ellipse cx="${cx}" cy="${cy}" rx="14" ry="23" fill="${col}" stroke="${K}" stroke-width="1.4"/><ellipse cx="${cx}" cy="${cy}" rx="11.5" ry="20" fill="none" stroke="${W}" stroke-width="2" stroke-dasharray="2 2.4"/><ellipse cx="${cx+1}" cy="${cy}" rx="7.5" ry="13" fill="${W}" stroke="${K}" stroke-width="1.2"/><ellipse cx="${cx+1.5}" cy="${cy}" rx="3.5" ry="6.5" fill="${col===R?B:R}"/></g>`;
+const puff=(x,y,c)=>`<g fill="${W}" stroke="${c}" stroke-width="1.2"><circle cx="${x}" cy="${y}" r="3.6"/><circle cx="${x+4.5}" cy="${y-2}" r="4.4"/><circle cx="${x+8.5}" cy="${y+.5}" r="3.4"/></g>`;
+const ANIMAL = {
+  25: `<path d="M1 17h15c2 0 3-1.5 3-3" fill="#8b6a4a" stroke="${K}" stroke-width="1"/><path d="M0 17c0-2 2-3 4-3h12v3z" fill="#a9845c" stroke="${K}" stroke-width="1"/><circle cx="8" cy="10" r="6.2" fill="#c98a4a" stroke="${K}" stroke-width="1.2"/>${ln('M8 10a1.5 1.5 0 0 1 2 1.6 3.5 3.5 0 0 1-4.6 2.6 5 5 0 0 1-2.6-6 6 6 0 0 1 7.6-3',K,1)}${ln('M15 14l1.5-6M17.5 14.5l3-5',K,1)}<circle cx="16.5" cy="7.6" r="1" fill="${K}"/><circle cx="20.6" cy="9.4" r="1" fill="${K}"/>`,
+  50: `<path d="M1 10l-1-4 4 3z" fill="#1f7a5a" stroke="${K}" stroke-width=".8"/><ellipse cx="8" cy="12" rx="8" ry="5" fill="#2e9a6e" stroke="${K}" stroke-width="1"/><path d="M13 9c1-3 1-6 3-7 2 0 3 1.5 3 3" fill="#1f7a5a" stroke="${K}" stroke-width="1"/><circle cx="16.5" cy="3.5" r="3" fill="#1f7a5a" stroke="${K}" stroke-width="1"/><path d="M19 3l3.5 1-3.5 1.4z" fill="#f2c94c" stroke="${K}" stroke-width=".7"/><circle cx="17" cy="2.8" r=".7" fill="${W}"/><path d="M4 11c3-2 7-2 9 0-3 2-6 2-9 0z" fill="#61b88f" stroke="${K}" stroke-width=".7"/>${ln('M7 17l-1 3M10 17l1 3','#e9902b',1.2)}`,
+  75: `<ellipse cx="5.5" cy="6" rx="5" ry="4" transform="rotate(-25 5.5 6)" fill="${L}" stroke="${K}" stroke-width="1"/><ellipse cx="14.5" cy="6" rx="5" ry="4" transform="rotate(25 14.5 6)" fill="${L}" stroke="${K}" stroke-width="1"/><ellipse cx="6.5" cy="13" rx="3.6" ry="3" transform="rotate(25 6.5 13)" fill="${R}" stroke="${K}" stroke-width="1"/><ellipse cx="13.5" cy="13" rx="3.6" ry="3" transform="rotate(-25 13.5 13)" fill="${R}" stroke="${K}" stroke-width="1"/><circle cx="5" cy="5.6" r="1.3" fill="${B}"/><circle cx="15" cy="5.6" r="1.3" fill="${B}"/><rect x="9.1" y="3" width="1.8" height="13" rx=".9" fill="${K}"/>${ln('M9.6 3.4C9 1.5 8 .6 6.5 0M10.4 3.4C11 1.5 12 .6 13.5 0',K,.8)}`,
+  100: `<path d="M1 12c2-5 8-7 13-5l3-1c2 0 3 1 3 3-1 1-2 1-3 1l-3 4c-3 2-8 2-11 1z" fill="#9a6a3e" stroke="${K}" stroke-width="1"/><path d="M15 6l1-6 2 1-1 5zM17 6l3-5 1.6 1.4-3 4.4z" fill="#9a6a3e" stroke="${K}" stroke-width=".8"/>${ln('M3 15l-3 4M6 15l-1 4M14 13l4 5M12 14l1.5 5','#6b4523',1.3)}<circle cx="1.5" cy="11" r="1.6" fill="${W}" stroke="${K}" stroke-width=".6"/><circle cx="18.2" cy="7.6" r=".7" fill="${K}"/>`,
+  200: `<path d="M10 8L0 1c4 0 8 2 11 5z" fill="${K}"/><path d="M11 8L22 0c-2 4-5 7-9 9z" fill="${K}"/><path d="M5 11c2-3 7-4 11-3l3-1-1.5 2.4c-3 3-8 4-12 3z" fill="#1d2a6b" stroke="${K}" stroke-width=".8"/><path d="M7 12c3 .6 6 0 9-2" stroke="${W}" stroke-width="1.2" fill="none" stroke-linecap="round"/><path d="M6 11L0 12l4 1-4 3 7-3z" fill="${K}"/><circle cx="16.6" cy="8.4" r=".9" fill="${R}"/>`,
+};
+function distArt(n){
+  return `<path d="M0 46C2 24 16 12 36 14c-6 10-6 22-4 34z" fill="${L}"/>${[[6,40,R],[12,30,B],[20,42,W],[7,26,W]].map(([x,y,c])=>`${ln(`M${x} ${y+2}v5`,G,1)}<circle cx="${x}" cy="${y}" r="2.2" fill="${c}" stroke="${K}" stroke-width=".7"/>`).join('')}${ln('M4 10l9 3M8 5l9 3',B,1.4)}<path d="M18 22a13 10 0 0 1 26 0z" fill="${R}" stroke="${K}" stroke-width="1.4"/><path d="M44 22l5-3.5a13 10 0 0 0-8-6.5" fill="#b82720" stroke="${K}" stroke-width="1.2"/><rect x="18" y="22" width="26" height="24" fill="${W}" stroke="${K}" stroke-width="1.4"/><path d="M44 22l5-3.5V42l-5 4z" fill="#e7e2d4" stroke="${K}" stroke-width="1.2"/><text x="31" y="${n>99?40:41.5}" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="${n>99?14:17}" fill="${K}">${n}</text><g transform="translate(39 ${n===200?0:1}) scale(1.1)">${ANIMAL[n]}</g>`;
+}
+const ART = {
+  STOP: lightArt(R,'top'),
+  ROLL: lightArt(L,'bot'),
+  LIMIT: `<rect x="8" y="22" width="30" height="30" fill="${B}"/>${sign50(R,B,1)}`,
+  ENDLIM: `<rect x="8" y="22" width="30" height="30" fill="${L}"/>${sign50(B,B,0)}<path d="M32 33.5L51 14.5" stroke="${B}" stroke-width="9"/><circle cx="41.5" cy="24" r="17" fill="none" stroke="${B}" stroke-width="1.5"/>`,
+  OUT: `<path d="M0 44L64 26v10L0 54z" fill="${B}"/>${car(16,16,.9,R)}<circle cx="10" cy="22" r="3" fill="${K}"/>${ln('M9 25L5 36M8 27l8 3M8 29l8 3M5 36l-3 9M5 36l4 8',K,2.2)}`,
+  FLAT: `${ln('M38 30h22M40 36h20M42 42h18',B,2.4)}${tireSide(28,36,R,-22)}${puff(4,14,B)}${puff(44,56,B)}${ln('M52 4l-3 10',R,3)}<circle cx="48.4" cy="18" r="1.6" fill="${R}"/>`,
+  ACC: `<path d="M0 36L64 18v12L0 48z" fill="${B}"/>${ln('M50 62L42 6',K,2.4)}<rect x="37" y="2" width="9" height="7" rx="1" fill="#ffe27a" stroke="${K}" stroke-width="1.2"/>${car(4,20,.78,R,18)}<path d="M38 36l4-6 2 7 5-3-3 7" fill="none" stroke="${R}" stroke-width="2"/>`,
+  GAS: `<rect x="3" y="8" width="17" height="44" rx="3" fill="${B}" stroke="${K}" stroke-width="1.4"/><rect x="7" y="13" width="9" height="11" rx="1" fill="${W}" stroke="${K}"/><rect x="1" y="52" width="21" height="4" fill="${K}"/>${ln('M20 20c9 0 12 6 14 12',K,1.6)}${car(22,30,.74,L)}${ln('M30 22l-2-6M38 21v-6M46 22l2-6',L,1.8)}`,
+  SPARE: `<path d="M0 28L64 8v14L0 42z" fill="${L}"/>${car(2,2,.4,K)}${car(44,52,.36,K)}${tireSide(34,36,B,18)}`,
+  REP: `<path d="M8 40h48" stroke="${R}" stroke-width="1.6"/>${car(4,22,.88,L)}<path d="M46 30.5l12-10 2.5 3z" fill="${L}" stroke="${K}" stroke-width="1.2"/><circle cx="56" cy="8" r="3.2" fill="${K}"/><path d="M53.5 11.5h5l1 12h-7z" fill="${B}" stroke="${K}" stroke-width="1"/>${ln('M54 24l-1 10M58 24l1 10',B,2.2)}${ln('M53.5 14l-5 6',B,2)}<g transform="rotate(-40 18 12)"><rect x="16.5" y="6" width="3" height="16" rx="1.5" fill="${R}" stroke="${K}" stroke-width=".8"/><circle cx="18" cy="5" r="4" fill="${R}" stroke="${K}" stroke-width=".8"/><rect x="16.8" y="0" width="2.4" height="4.5" fill="#fffdf6"/></g>`,
+  ROW: `${nBand}<g transform="translate(4 24)"><rect x="0" y="8" width="40" height="16" rx="2" fill="${R}" stroke="${K}" stroke-width="1.3"/><path d="M40 10h10l6 7v7H40z" fill="${R}" stroke="${K}" stroke-width="1.3"/><path d="M43 12h6l4 5h-10z" fill="#dff1ff"/><path d="M2 6h34M2 2h34" stroke="${K}" stroke-width="1.2"/>${[4,10,16,22,28,34].map(x=>`<path d="M${x} 2v4" stroke="${K}" stroke-width="1"/>`).join('')}<rect x="45" y="6" width="5" height="3" rx="1" fill="${B}"/>${[9,25,47].map(x=>`<circle cx="${x}" cy="25" r="4.6" fill="${K}"/><circle cx="${x}" cy="25" r="1.8" fill="${W}"/>`).join('')}</g>`,
+  TANK: `${nBand}<g transform="translate(3 22)"><rect x="0" y="4" width="38" height="16" rx="8" fill="${B}" stroke="${K}" stroke-width="1.3"/><path d="M4 8h30" stroke="${W}" stroke-width="2"/><path d="M38 6h9l7 8v8H38z" fill="${B}" stroke="${K}" stroke-width="1.3"/><path d="M41 8h5l5 6H41z" fill="#dff1ff"/><rect x="0" y="20" width="56" height="3" fill="${K}"/>${[8,20,46].map(x=>`<circle cx="${x}" cy="25" r="4.4" fill="${K}"/><circle cx="${x}" cy="25" r="1.7" fill="${W}"/>`).join('')}</g>`,
+  PUNCT: `${nBand}${wheelFront(32,34,17,B)}${ln('M32 2v10',R,2.4)}<path d="M28 6l4-6 4 6z" fill="${R}"/>${ln('M32 56v8',R,2.4)}`,
+  ACE: `${nBand}<circle cx="32" cy="32" r="19" fill="none" stroke="${B}" stroke-width="5"/><circle cx="32" cy="32" r="5" fill="${B}"/>${ln('M14 34h13M37 34h13M32 37v13',B,4)}<path d="M32 29l1 2 2.2.2-1.7 1.4.6 2.2-2.1-1.2-2.1 1.2.6-2.2-1.7-1.4 2.2-.2z" fill="${W}"/><path d="M9 20c-2-6 2-10 6-9l4 4-4 6z" fill="${R}" stroke="${K}" stroke-width="1"/><path d="M55 20c2-6-2-10-6-9l-4 4 4 6z" fill="${R}" stroke="${K}" stroke-width="1"/>`,
+};
+function borne(n){
+  return `<svg viewBox="0 0 48 52" aria-hidden="true"><path d="M7 50V21a17 17 0 0 1 34 0v29z" fill="#fff" stroke="#1c1e23" stroke-width="2"/><path d="M7 21a17 17 0 0 1 34 0z" fill="#d23a2e" stroke="#1c1e23" stroke-width="2"/><text x="24" y="${n>99?41:42}" text-anchor="middle" font-family="Anton,Impact,sans-serif" font-size="${n>99?15:18}" fill="#1c1e23">${n}</text></svg>`;
+}
+const IDX = {ACC:'A',OUT:'P',FLAT:'C',LIMIT:'L',STOP:'S',REP:'R',GAS:'E',SPARE:'RS',ENDLIM:'F',ROLL:'V',ACE:'★',TANK:'★',PUNCT:'★',ROW:'★'};
+const FT = {ACC:'Accident',OUT:"Panne d'essence",FLAT:'Crevé !',LIMIT:'Limite de vitesse',STOP:'Stop',REP:'Réparations',GAS:'Essence',SPARE:'Roue de secours',ENDLIM:'Fin de limite',ROLL:'Roulez',ACE:'as du volant',TANK:"citerne d'essence",PUNCT:'increvable',ROW:'véhicule prioritaire'};
+const DIGITS = {25:[B,B],50:[R,R],75:[K,B],100:[K,B,B],200:[R,K,B]};
+function cardHTML(c, cls='', attrs=''){
+  const m = META[c];
+  if (attrs) attrs += ' role="button" tabindex="0"';
+  let inner;
+  if (m.k==='dist'){
+    const big = String(m.n).split('').map((d,i)=>`<span style="color:${DIGITS[m.n][i]}">${d}</span>`).join('');
+    inner = `<span class="idx">${m.n}</span><svg class="art" viewBox="0 0 64 50" aria-hidden="true">${distArt(m.n)}</svg><div class="big">${big}</div><div class="km">KM</div>`;
+  } else {
+    inner = `<span class="idx">${IDX[c]}</span><div class="ft">${FT[c]}</div><svg class="art" viewBox="0 0 64 64" aria-hidden="true">${ART[c]}</svg><div class="nm">${m.nm}</div><div class="chip">${BAND[m.k]}</div>`;
+  }
+  return `<div class="card k-${m.k} ${cls}" ${attrs} aria-label="${m.nm}"><div class="face">${inner}</div></div>`;
+}
+const carSVG = col => `<svg class="car-svg" viewBox="0 0 44 30" width="44" height="30" aria-hidden="true"><path d="M3 20l3-8 8-2 5-6h12l5 6 5 1 1 9z" fill="${col}" stroke="#111" stroke-width="1.5"/><rect x="21" y="6" width="9" height="5" rx="1" fill="#cfe3ff"/><circle cx="12" cy="22" r="5" fill="#111"/><circle cx="34" cy="22" r="5" fill="#111"/><circle cx="12" cy="22" r="2" fill="#bbb"/><circle cx="34" cy="22" r="2" fill="#bbb"/></svg>`;
+
+/* ---------- Rules engine ---------- */
+const other = s => s==='A' ? 'B' : 'A';
+const clone = o => JSON.parse(JSON.stringify(o));
+const has = (p,s) => p.safeties.includes(s);
+function moving(p){
+  if (p.battle && HAZ[p.battle]) return false;
+  if (p.battle==='ROLL') return true;
+  return has(p,'ROW');
+}
+function newPlayer(){ return {hand:[],battle:null,limit:false,miles:0,n200:0,dists:[],safeties:[],coups:[]}; }
+function blankTable(){ return {v:1,phase:'lobby',seats:{},totals:{A:0,B:0},handNo:0,starter:'B',rev:0}; }
+function shuffled(){
+  const d=[]; for (const [c,n] of Object.entries(COUNTS)) for (let i=0;i<n;i++) d.push(c);
+  for (let i=d.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+  return d;
+}
+function dealHand(prev){
+  const s = clone(prev);
+  s.phase='play'; s.deck=shuffled(); s.discard=[];
+  s.players={A:newPlayer(),B:newPlayer()};
+  for (let i=0;i<6;i++){ s.players.A.hand.push(s.deck.pop()); s.players.B.hand.push(s.deck.pop()); }
+  s.starter = other(prev.starter||'B'); s.turn=s.starter; s.drawn=false; s.coup=null;
+  s.last=`Hand ${(prev.handNo||0)+1} is dealt. First turn: %${s.starter}.`;
+  s.log=[s.last];
+  s.handNo=(prev.handNo||0)+1; s.result=null; s.champion=null;
+  if (!s.totals) s.totals={A:0,B:0};
+  return s;
+}
+function newGame(prev){ const s=clone(prev); s.totals={A:0,B:0}; s.handNo=0; s.champion=null; return dealHand(s); }
+
+function whyNot(s, seat, c){
+  const me=s.players[seat], op=s.players[other(seat)], m=META[c], them=nameOf(other(seat),s);
+  if (m.k==='dist'){
+    if (!moving(me)) return me.battle && HAZ[me.battle] ? `You have a ${META[me.battle].nm}. Fix it with ${META[FIX[me.battle]].nm} first.` : 'You need a green light (Roll) before you can drive.';
+    if (me.limit && m.n>50) return 'Speed limit! Only 25 or 50 until you play End of Limit.';
+    if (me.miles+m.n>GOAL) return `That would go past ${GOAL} km. You need exactly ${GOAL-me.miles} more.`;
+    if (m.n===200 && me.n200>=2) return 'Only two 200s are allowed per hand.';
+    return null;
+  }
+  if (m.k==='safe') return null;
+  if (m.k==='haz'){
+    if (has(op,SAFE_FOR[c])) return `${them} has ${META[SAFE_FOR[c]].nm}, so this can't hurt them.`;
+    if (c==='LIMIT') return op.limit ? `${them} already has a speed limit.` : null;
+    if (op.battle && HAZ[op.battle]) return `${them} is already stuck. Wait until they fix it.`;
+    if (!moving(op)) return `You can only do this while ${them} is rolling (green light).`;
+    return null;
+  }
+  if (c==='ENDLIM') return me.limit ? null : 'You have no speed limit to end.';
+  if (c==='ROLL'){
+    if (has(me,'ROW')) return 'You have Right of Way, so you never need a green light.';
+    if (me.battle==='ROLL') return 'You already have a green light.';
+    if (me.battle && HAZ[me.battle] && me.battle!=='STOP') return `Fix your ${META[me.battle].nm} with ${META[FIX[me.battle]].nm} first.`;
+    return null;
+  }
+  const need = Object.keys(HAZ).find(h=>FIX[h]===c);
+  return me.battle===need ? null : `Only useful when you have a ${META[need].nm}.`;
+}
+function applySafety(p, c){
+  p.safeties.push(c);
+  for (const h of Object.keys(HAZ)) if (SAFE_FOR[h]===c && p.battle===h) p.battle='SAFE';
+  if (c==='ROW') p.limit=false;
+}
+function nextTurn(s, again){
+  if (!again) s.turn=other(s.turn);
+  for (let k=0;k<2;k++){ if (s.deck.length || s.players[s.turn].hand.length) break; s.turn=other(s.turn); }
+  if (!s.deck.length && !s.players.A.hand.length && !s.players.B.hand.length) return endHand(s);
+  s.drawn = s.deck.length===0;
+  return s;
+}
+function scoreHand(s){
+  const out={};
+  for (const x of ['A','B']){
+    const p=s.players[x], o=s.players[other(x)], items=[['Distance',p.miles]];
+    if (p.safeties.length) items.push([`Safeties ×${p.safeties.length}`,100*p.safeties.length]);
+    if (p.safeties.length===4) items.push(['All four safeties',300]);
+    if (p.coups.length) items.push([`Coup fourré ×${p.coups.length}`,300*p.coups.length]);
+    if (p.miles===GOAL){
+      items.push(['Trip complete',400]);
+      if (!s.deck.length) items.push(['Delayed action',300]);
+      if (!p.n200) items.push(['Safe trip (no 200s)',300]);
+      if (!o.miles) items.push(['Shutout',500]);
+    }
+    out[x]={items,total:items.reduce((a,b)=>a+b[1],0)};
+  }
+  return out;
+}
+function endHand(s){
+  s.phase='over'; s.result=scoreHand(s);
+  s.totals={A:(s.totals?.A||0)+s.result.A.total, B:(s.totals?.B||0)+s.result.B.total};
+  const a=s.totals.A, b=s.totals.B;
+  s.champion = (a>=GAME_GOAL||b>=GAME_GOAL) && a!==b ? (a>b?'A':'B') : null;
+  return s;
+}
+function apply(s0, seat, a){
+  const s=applyMove(s0,seat,a);
+  if (s!==s0 && a.t!=='draw' && s.last) s.log=(s.log||[]).concat(s.last).slice(-60);
+  return s;
+}
+function applyMove(s0, seat, a){
+  if (!s0 || s0.phase!=='play' || s0.turn!==seat) return s0;
+  const s=clone(s0), me=s.players[seat], op=s.players[other(seat)];
+  if (a.t==='coup'){
+    if (!(s.coup && s.coup.seat===seat && !s.drawn)) return s0;
+    const i=me.hand.indexOf(s.coup.card); if (i<0) return s0;
+    me.hand.splice(i,1); applySafety(me,s.coup.card); me.coups.push(s.coup.card);
+    if (s.coup.haz==='LIMIT') me.limit=false;
+    s.last=`COUP FOURRÉ! %${seat} blocked the ${META[s.coup.haz].nm} with ${META[s.coup.card].nm} (+400).`;
+    if (s.deck.length) me.hand.push(s.deck.pop());
+    s.coup=null; s.drawn = s.deck.length===0;
+    return s;
+  }
+  if (a.t==='draw'){
+    if (s.drawn || !s.deck.length) return s0;
+    me.hand.push(s.deck.pop()); s.drawn=true; s.coup=null;
+    return s;
+  }
+  if (!s.drawn && s.deck.length) return s0;
+  const c=me.hand[a.i]; if (!c) return s0;
+  s.coup=null;
+  if (a.t==='discard'){
+    me.hand.splice(a.i,1); s.discard.push(c);
+    s.last=`%${seat} threw away ${META[c].nm}.`;
+    return nextTurn(s,false);
+  }
+  if (a.t!=='play' || whyNot(s,seat,c)) return s0;
+  me.hand.splice(a.i,1);
+  const m=META[c]; let again=false;
+  if (m.k==='dist'){
+    me.miles+=m.n; if (m.n===200) me.n200++; (me.dists=me.dists||[]).push(m.n);
+    s.last=`%${seat} drove ${m.n} km (now ${me.miles}).`;
+  } else if (m.k==='safe'){
+    applySafety(me,c); again=true;
+    s.last=`%${seat} played the safety ${m.nm} and gets another turn.`;
+  } else if (m.k==='haz'){
+    if (c==='LIMIT'){ op.limit=true; op.speedTop='LIMIT'; } else op.battle=c;
+    s.last=`%${seat} played ${m.nm} on %${other(seat)}!`;
+    if (op.hand.includes(SAFE_FOR[c])) s.coup={seat:other(seat),card:SAFE_FOR[c],haz:c};
+  } else {
+    if (c==='ENDLIM'){ me.limit=false; me.speedTop='ENDLIM'; } else me.battle=c;
+    s.last=`%${seat} played ${m.nm}.`;
+  }
+  if (me.miles===GOAL){ s.last=`%${seat} reached ${GOAL} km!`; return endHand(s); }
+  if (again){ s.drawn = s.deck.length===0; if (!me.hand.length && !s.deck.length) return nextTurn(s,false); return s; }
+  return nextTurn(s,false);
+}
+
+/* ---------- Computer opponent ---------- */
+function aiAction(s, seat){
+  if (s.coup && s.coup.seat===seat && !s.drawn) return {t:'coup'};
+  if (!s.drawn && s.deck.length) return {t:'draw'};
+  const me=s.players[seat], op=s.players[other(seat)];
+  let best=-1, bi=-1;
+  me.hand.forEach((c,i)=>{
+    if (whyNot(s,seat,c)) return;
+    const m=META[c]; let v;
+    if (m.k==='dist') v=40+m.n/10;
+    else if (m.k==='safe') v=((me.battle && SAFE_FOR[me.battle]===c) || (c==='ROW' && me.limit)) ? 95 : (s.deck.length<12 ? 35 : 20);
+    else if (m.k==='haz') v=(c==='LIMIT'?50:70)+(op.miles>=me.miles?8:0);
+    else v=c==='ROLL'?88:90;
+    if (v>best){best=v;bi=i;}
+  });
+  if (bi>=0 && best>=30) return {t:'play',i:bi};
+  let worst=1e9, wi=0;
+  me.hand.forEach((c,i)=>{
+    const m=META[c]; let v;
+    if (m.k==='safe') v=1000;
+    else if (m.k==='dist') v=(me.miles+m.n>GOAL || (m.n===200 && me.n200>=2)) ? 0 : m.n/5;
+    else if (m.k==='haz') v=has(op,SAFE_FOR[c]) ? 1 : 45;
+    else if (c==='ROLL') v=has(me,'ROW') ? 1 : 60;
+    else { const h=Object.keys(FIX).find(k=>FIX[k]===c); v=has(me,SAFE_FOR[h]) ? 1 : 30-8*(me.hand.filter(x=>x===c).length-1); }
+    if (v<worst){worst=v;wi=i;}
+  });
+  if (bi>=0 && worst>=20) return {t:'play',i:bi};
+  return {t:'discard',i:wi};
+}
+
+/* ---------- App state ---------- */
+let mode=null;            // null (home) | 'local' | 'online'
+let local=null;           // practice game state
+let online=null;          // shared table state (the host owns the real copy)
+let busy=false, showLog=false, sel=-1, aiTimer=null, joinErr='';
+const net={role:null, code:'', peer:null, conn:null, status:'idle', msg:'', retry:null, tries:0};
+const $ = id => document.getElementById(id);
+const esc = t => String(t??'').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+function save(k,v){ try{ v==null ? localStorage.removeItem(k) : localStorage.setItem(k, typeof v==='string'?v:JSON.stringify(v)); }catch(e){} }
+function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function loadJSON(k){ try{ return JSON.parse(load(k)||'null'); }catch(e){ return null; } }
+function localKey(){
+  let k=load('rt1000-key');
+  if (!k){ k='d_'+Math.random().toString(36).slice(2)+Date.now().toString(36); save('rt1000-key',k); }
+  return k;
+}
+const myKey=localKey();
+
+function state(){ return mode==='local' ? local : online; }
+function mySeat(s){
+  if (mode==='local') return 'A';
+  if (!s?.seats) return null;
+  return ['A','B'].find(x=>s.seats[x]?.key===myKey) || null;
+}
+function nameOf(seat, s){
+  s = s || state();
+  if (mode==='local') return seat==='A' ? 'You' : 'Robo';
+  return s?.seats?.[seat]?.name || (seat==='A'?'Player 1':'Player 2');
+}
+function fmt(text, s){
+  const me=mySeat(s);
+  return esc(text||'').replace(/%([AB])/g,(_,x)=> x===me ? 'You' : esc(nameOf(x,s)));
+}
+function toast(t){ const el=$('toast'); el.textContent=t; el.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>el.hidden=true,3500); }
+function myName(){ const v=($('nm')?.value||load('rt1000-name')||'').trim().slice(0,20); if (v) save('rt1000-name',v); return v; }
+
+/* ---------- Networking (device to device, via PeerJS) ---------- */
+const PREFIX='roadto1000-';
+const ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const newCode=()=>Array.from({length:4},()=>ALPHA[Math.floor(Math.random()*ALPHA.length)]).join('');
+function setStatus(st,msg=''){ net.status=st; net.msg=msg; render(); }
+function shutdown(){
+  clearTimeout(net.retry);
+  try{ net.conn?.close(); }catch(e){}
+  try{ net.peer?.destroy(); }catch(e){}
+  Object.assign(net,{role:null,code:'',peer:null,conn:null,status:'idle',msg:'',tries:0});
+}
+function hostCommit(n){
+  n.rev=(online?.rev||0)+1; online=n;
+  save('rt1000-host',{code:net.code,state:online});
+  if (net.conn?.open) net.conn.send({t:'state',state:online});
+  render();
+}
+function startHost(code, saved){
+  if (typeof Peer==='undefined'){ toast('Could not load the connection library. Check your internet and reload.'); return; }
+  const name=myName();
+  shutdown();
+  mode='online'; net.role='host'; net.code=code;
+  online = saved || {...blankTable(), seats:{A:{key:myKey,name:name||'Player 1'}}};
+  if (name && online.seats.A) online.seats.A.name=name;
+  save('rt1000-host',{code,state:online}); save('rt1000-guest',null);
+  setStatus('starting');
+  const peer=new Peer(PREFIX+code); net.peer=peer;
+  peer.on('open',()=>{ net.tries=0; setStatus(net.conn?.open?'connected':'waiting'); });
+  peer.on('connection',conn=>{
+    conn.on('data',d=>hostReceive(conn,d));
+    conn.on('close',()=>{ if (net.conn===conn){ net.conn=null; if (net.role==='host') setStatus('waiting'); } });
+  });
+  peer.on('disconnected',()=>{ if (net.role==='host' && !peer.destroyed) setTimeout(()=>{ try{ peer.reconnect(); }catch(e){} },1500); });
+  peer.on('error',err=>{
+    if (net.peer!==peer) return;
+    if (err.type==='unavailable-id'){
+      if (!saved){ startHost(newCode()); return; }
+      if (net.tries++<10){ setStatus('starting','Getting your table back…'); net.retry=setTimeout(()=>startHost(code,online),3000); return; }
+      setStatus('error','That game code is still in use. Start a new game instead.'); return;
+    }
+    if (err.type==='network' || err.type==='server-error' || err.type==='socket-error' || err.type==='socket-closed'){
+      setStatus('error','Lost touch with the connection service. Check your internet; it will keep trying.');
+      net.retry=setTimeout(()=>{ try{ peer.reconnect(); }catch(e){} },4000); return;
+    }
+  });
+}
+function hostReceive(conn,d){
+  if (!d || typeof d!=='object') return;
+  if (d.t==='hello'){
+    const b=online.seats.B;
+    if (b && b.key!==d.key){ conn.send({t:'full'}); setTimeout(()=>conn.close(),500); return; }
+    if (net.conn && net.conn!==conn){ try{ net.conn.close(); }catch(e){} }
+    net.conn=conn;
+    const n=clone(online); n.seats.B={key:String(d.key).slice(0,60), name:String(d.name||'Player 2').slice(0,20)};
+    setStatus('connected'); hostCommit(n); return;
+  }
+  if (conn!==net.conn) return;
+  if (d.t==='act'){ const n=apply(online,'B',d.a||{}); if (n!==online) hostCommit(n); else conn.send({t:'state',state:online}); return; }
+  if (d.t==='deal' && online.phase!=='play' && !online.champion && online.seats.B){ hostCommit(dealHand(online)); return; }
+  if (d.t==='newgame' && online.champion){ hostCommit(newGame(online)); return; }
+}
+function startGuest(code){
+  if (typeof Peer==='undefined'){ toast('Could not load the connection library. Check your internet and reload.'); return; }
+  code=(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4);
+  if (code.length!==4){ joinErr='Game codes have 4 letters or numbers.'; render(); return; }
+  const name=myName();
+  if (!name){ joinErr='Type your name first.'; render(); $('nm')?.focus(); return; }
+  joinErr=''; shutdown();
+  mode='online'; net.role='guest'; net.code=code; online=null;
+  save('rt1000-guest',{code}); save('rt1000-host',null);
+  setStatus('starting');
+  const peer=new Peer(); net.peer=peer;
+  peer.on('open',()=>guestConnect());
+  peer.on('disconnected',()=>{ if (net.role==='guest' && !peer.destroyed) setTimeout(()=>{ try{ peer.reconnect(); }catch(e){} },1500); });
+  peer.on('error',err=>{
+    if (net.peer!==peer) return;
+    if (err.type==='peer-unavailable'){
+      if (online){ guestRetry(); return; }
+      setStatus('error',`No game found with code ${code}. Check the code, and make sure the host has the game open.`); return;
+    }
+    if (err.type==='network' || err.type==='server-error' || err.type==='socket-error' || err.type==='socket-closed') guestRetry();
+  });
+}
+function guestConnect(){
+  if (net.role!=='guest' || !net.peer || net.peer.destroyed) return;
+  const conn=net.peer.connect(PREFIX+net.code,{reliable:true}); net.conn=conn;
+  const timer=setTimeout(()=>{ if (!conn.open && net.conn===conn){ setStatus('error','Could not reach the host. Make sure they have the game open. Some mobile and school networks block direct connections; try Wi-Fi.'); guestRetry(); } },12000);
+  conn.on('open',()=>{ clearTimeout(timer); net.tries=0; conn.send({t:'hello',key:myKey,name:myName()||'Player 2'}); setStatus('connected'); });
+  conn.on('data',d=>{
+    if (d?.t==='state'){ online=d.state; render(); }
+    else if (d?.t==='full'){ setStatus('error','That game already has two players.'); shutdown(); mode='online'; net.status='error'; net.msg='That game already has two players.'; render(); }
+  });
+  conn.on('close',()=>{ clearTimeout(timer); if (net.conn===conn && net.role==='guest'){ net.conn=null; guestRetry(); } });
+}
+function guestRetry(){
+  if (net.role!=='guest') return;
+  clearTimeout(net.retry);
+  if (net.status!=='error') setStatus('lost');
+  net.retry=setTimeout(()=>{
+    if (net.role!=='guest') return;
+    if (!net.peer || net.peer.destroyed){ startGuest(net.code); return; }
+    if (net.peer.disconnected){ try{ net.peer.reconnect(); }catch(e){} }
+    guestConnect();
+  },3000);
+}
+document.addEventListener('visibilitychange',()=>{
+  if (document.visibilityState!=='visible') return;
+  if (net.peer?.disconnected){ try{ net.peer.reconnect(); }catch(e){} }
+  if (net.role==='guest' && !net.conn?.open) guestRetry();
+});
+
+function act(a){
+  const s=state(), seat=mySeat(s);
+  if (!s || !seat) return;
+  const n=apply(s,seat,a);
+  if (n===s) return;
+  sel=-1;
+  if (mode==='local'){ local=n; render(); return; }
+  if (net.role==='host'){ hostCommit(n); return; }
+  if (!net.conn?.open){ toast('Not connected right now. Reconnecting…'); return; }
+  online=n; render();
+  net.conn.send({t:'act',a});
+}
+function dealOrNew(kind){
+  if (mode==='local'){ local = kind==='deal' ? dealHand(local) : newGame(local); render(); return; }
+  if (net.role==='host'){ if (!online.seats.B){ toast('Wait for the other player to join first.'); return; } hostCommit(kind==='deal' ? dealHand(online) : newGame(online)); return; }
+  if (net.conn?.open) net.conn.send({t:kind}); else toast('Not connected right now. Reconnecting…');
+}
+
+/* ---------- Rendering ---------- */
+function render(){
+  const app=$('app'), focus=document.activeElement?.id, nmv=$('nm')?.value, cdv=$('code')?.value;
+  if (!mode) app.innerHTML=homeHTML();
+  else if (mode==='online' && (!online || online.phase==='lobby')) app.innerHTML=lobbyHTML();
+  else app.innerHTML=tableHTML(state());
+  const nm=$('nm'); if (nm) nm.value = nmv ?? (load('rt1000-name')||'');
+  const cd=$('code'); if (cd && cdv!=null) cd.value=cdv;
+  if (focus && $(focus)) $(focus).focus();
+  scheduleAI();
+}
+function connPill(){
+  if (mode!=='online') return '';
+  const them = net.role==='host' ? (online?.seats?.B?.name||'player 2') : (online?.seats?.A?.name||'the host');
+  const map={starting:['wait','Connecting…'],waiting:['wait',`Waiting for ${esc(them)}`],connected:['go','Connected'],lost:['stop','Reconnecting…'],error:['stop','Not connected']};
+  const [c,t]=map[net.status]||['wait','…'];
+  return `<span class="status ${c}">${t}</span>`;
+}
+function topBar(){
+  return `<div class="top"><span class="brand">Road to 1000</span><span class="row" style="align-items:center;gap:8px">${connPill()}<button class="ghost" data-act="home">Menu</button></span></div>`;
+}
+function rulesHTML(){
+  return `<details class="rules"><summary>How to play</summary><ul>
+  <li>Race your car to exactly <b>1000 km</b>. Each turn: draw a card, then play one card or throw one away.</li>
+  <li>You can't drive until you play a green light (<span class="kw-f">Roll</span>). Then play <b>distance cards</b> (25 to 200 km). Only two 200s per hand.</li>
+  <li>Slow your opponent down with <span class="kw-h">Hazards</span>: Accident, Out of Gas, Flat Tire, Stop, and Speed Limit (max 50 km cards).</li>
+  <li>Fix a hazard with its <span class="kw-f">Remedy</span>: Repairs, Gasoline, Spare Tire, Roll, or End of Limit. After a fix you need a Roll again.</li>
+  <li><span class="kw-s">Safeties</span> protect you for the rest of the hand and give you another turn: Driving Ace, Extra Tank, Puncture-Proof, Right of Way (no more Stops or Speed Limits, and you never need Roll).</li>
+  <li><b>Coup fourré:</b> if someone hits you with a hazard and you are holding its safety, play it right away at the start of your turn for a big bonus.</li>
+  <li>Scoring: 1 point per km, 100 per safety, 300 per coup fourré, 400 for finishing, plus bonuses. First to ${GAME_GOAL} points wins the game.</li>
+  </ul></details>`;
+}
+function homeHTML(){
+  const h=loadJSON('rt1000-host'), g=loadJSON('rt1000-guest');
+  const resume = h?.code ? `<button class="btn dark" data-act="resume-host">Go back to your game (code ${esc(h.code)})</button>`
+               : g?.code ? `<button class="btn dark" data-act="resume-guest">Rejoin game ${esc(g.code)}</button>` : '';
+  return `<div class="hero">${borne(1000).replace('<svg','<svg role="img" aria-label="Kilometre marker"')}<h1>Road to 1000</h1><p>A two-player road race card game, based on the French classic Mille Bornes.</p></div>
+  <div class="choices">
+    <div class="choice"><h2>Play together</h2><p>Each player opens this page on their own phone or iPad. One person hosts and shares the 4-letter code; the other joins with it. No accounts needed.</p>
+      <div class="field"><label for="nm"><b>Your name</b></label><input id="nm" maxlength="20" autocomplete="nickname" placeholder="e.g. Uncle Brian"></div>
+      <button class="btn" data-act="host">Host a game</button>
+      <div class="joinrow"><label for="code" class="sr">Game code</label><input id="code" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="CODE"><button class="btn green" data-act="join">Join</button></div>
+      ${joinErr?`<div class="err">${esc(joinErr)}</div>`:''}
+      ${resume}
+    </div>
+    <div class="choice"><h2>Practice vs Robo</h2><p>Play against the computer on this device to learn the cards. Works offline too.</p><button class="btn dark" data-act="go-local">${local && local.phase!=='lobby' ? 'Continue practice' : 'Start practice'}</button></div>
+  </div>
+  ${rulesHTML()}`;
+}
+function lobbyHTML(){
+  const s=online, link=location.href.split('#')[0];
+  if (net.role==='guest'){
+    let body;
+    if (net.status==='error') body=`<div class="note">${esc(net.msg)}</div><button class="btn" data-act="resume-guest">Try again</button>`;
+    else if (!s) body=`<div class="note">Connecting to game <b>${esc(net.code)}</b>…</div>`;
+    else body=`<div class="seats"><div class="seat"><span class="lbl">Host</span><span class="who">${esc(s.seats.A?.name)}</span></div><div class="seat"><span class="lbl">You</span><span class="who">${esc(s.seats.B?.name||'')}</span></div></div>
+      <div class="note">You're in! Either of you can deal.</div><button class="btn green" data-act="deal">Deal the cards</button>`;
+    return topBar()+`<h2>Game ${esc(net.code)}</h2>${body}${rulesHTML()}`;
+  }
+  const b=s?.seats?.B;
+  return topBar()+`<h2>Your game</h2>
+    <div class="codebox"><span class="lbl">Game code</span><span class="code">${esc(net.code)}</span><span class="hint">Send the other player this link and code:</span><span class="link">${esc(link)}</span><button class="ghost" data-act="copy">Copy invite</button></div>
+    ${net.status==='error'?`<div class="note">${esc(net.msg)}</div>`:''}
+    <div class="seats"><div class="seat"><span class="lbl">Player 1 (you)</span><span class="who">${esc(s.seats.A?.name)}</span></div><div class="seat"><span class="lbl">Player 2</span><span class="who">${b?esc(b.name)+(net.conn?.open?'':' (away)'):'Not here yet'}</span></div></div>
+    ${b?`<div class="note">Both players are here. Either of you can deal.</div><button class="btn green" data-act="deal">Deal the cards</button>`:`<div class="note">Waiting for them to open the link, type their name and the code, and tap Join. Keep this page open.</div>`}
+    ${rulesHTML()}`;
+}
+
+function statusChip(p){
+  if (p.battle && HAZ[p.battle]) return `<span class="status stop">Stopped: ${META[p.battle].nm}</span>`;
+  if (moving(p)) return `<span class="status go">${p.limit?'Rolling (max 50)':'Rolling!'}</span>`;
+  return `<span class="status wait">Needs a green light${p.limit?' · limit 50':''}</span>`;
+}
+function stripHTML(s, seat, mine){
+  const p=s.players[seat];
+  const battle = p.battle && p.battle!=='SAFE' ? cardHTML(p.battle,'mini') : `<div class="empty">${has(p,'ROW')?'Right of Way':'No light yet'}</div>`;
+  const speed = p.limit ? cardHTML('LIMIT','mini') : has(p,'ROW') ? `<div class="empty">Right of Way</div>` : p.speedTop==='ENDLIM' ? cardHTML('ENDLIM','mini') : `<div class="empty">No limit</div>`;
+  const safes = p.safeties.map(c=>`<div class="slot">${cardHTML(c,'mini')}${p.coups.includes(c)?'Coup!':'Safety'}</div>`).join('');
+  const groups = [25,50,75,100,200].map(n=>[n,(p.dists||[]).filter(x=>x===n).length]).filter(g=>g[1]);
+  const dist = groups.length ? groups.map(([n,c])=>`<div class="dstack ${c>1?'multi':''}" aria-label="${c} × ${n} km">${cardHTML('D'+n,'mini')}${c>1?`<span class="cnt">×${c}</span>`:''}</div>`).join('') : `<div class="empty">No km played yet</div>`;
+  const turn = s.phase==='play' && s.turn===seat;
+  return `<section class="strip ${mine?'mine':''} ${turn?'turn':''}" aria-label="${esc(nameOf(seat,s))}">
+    <div class="strip-head"><span class="pname">${mine && mode==='online' ? esc(nameOf(seat,s))+' (you)' : esc(nameOf(seat,s))} · <small style="color:var(--muted)">${s.totals?.[seat]||0} pts</small></span><span class="km">${p.miles}<small> / ${GOAL} km</small></span></div>
+    <div>${statusChip(p)}</div>
+    <div class="piles"><div class="slot">${battle}Battle</div><div class="slot">${speed}Speed</div><div class="slot dist"><div class="dstacks">${dist}</div>Distance</div></div>
+    ${safes || !mine ? `<div class="extras">${safes}${mine?'':`<div class="backs" aria-label="${p.hand.length} cards in hand">${'<i></i>'.repeat(Math.min(p.hand.length,7))} ${p.hand.length} cards</div>`}</div>` : ''}
+  </section>`;
+}
+function roadHTML(s, top, bottom){
+  const lane = (seat,col) => `<div class="lane"><span class="flag"></span><div class="car" style="left:calc((100% - 66px) * ${s.players[seat].miles/GOAL})">${carSVG(col)}</div></div>`;
+  return `<div class="road" aria-hidden="true">${lane(top,'#7fa8ff')}${lane(bottom,'#f2c94c')}<div class="ticks"><span>0</span><span>250</span><span>500</span><span>750</span><span>1000 km</span></div></div>`;
+}
+function tableHTML(s){
+  const me=mySeat(s), view=me||'A', opp=other(view), mine=s.players[view];
+  const myTurn = !!me && s.phase==='play' && s.turn===me;
+  const canCoup = myTurn && s.coup && s.coup.seat===me && !s.drawn;
+  if (sel>=mine.hand.length) sel=-1;
+  let big, small='';
+  if (!me) { big='Both seats are taken. You are watching.'; }
+  else if (s.phase!=='play') big='Hand over.';
+  else if (!myTurn) big=`Waiting for ${esc(nameOf(opp,s))}…`;
+  else if (canCoup) big='Coup fourré chance!';
+  else if (!s.drawn) { big='Your turn! Tap the deck to draw.'; }
+  else if (sel<0) { big='Pick a card to play or throw away.'; small='Cards with a green dot can be played now.'; }
+  else { const r=whyNot(s,me,mine.hand[sel]); big=r?esc(r):`Ready: ${META[mine.hand[sel]].nm}`; small=r?'You can still throw it away.':''; }
+  if (busy) small='Saving…';
+  const top = s.discard?.length ? cardHTML(s.discard[s.discard.length-1],'mini') : `<div class="empty">Discard</div>`;
+  const pulse = myTurn && !s.drawn && !canCoup && s.deck.length;
+  const log = (s.log && s.log.length) ? s.log : (s.last ? [s.last] : []);
+  const recent = log.slice(-3).reverse();
+  const event = log.length ? `<div class="event" role="status"><div class="ev-title">Latest plays</div><ul class="plays recent">${recent.map((t,i)=>`<li class="${i===0?'now':''}">${fmt(t,s)}</li>`).join('')}</ul>${log.length>3?`<button class="linkish" data-act="log">${showLog?'Hide':'Show'} all ${log.length} plays this hand</button>`:''}${showLog&&log.length>3?`<ol class="plays all" reversed>${log.slice().reverse().map(t=>`<li>${fmt(t,s)}</li>`).join('')}</ol>`:''}</div>` : '';
+  const coup = canCoup ? `<div class="coup"><b>Coup fourré!</b><span>${esc(nameOf(opp,s))} hit you with ${META[s.coup.haz].nm}, but you are holding ${META[s.coup.card].nm}. Block it now for a bonus and keep your turn.</span>
+    <div class="row"><button class="btn" data-act="coup">Coup fourré! (+400)</button><button class="btn dark" data-act="draw">No thanks, draw</button></div></div>` : '';
+  const hand = me ? `<div class="hand">${mine.hand.map((c,i)=>{
+      const cls=[i===sel?'sel':''];
+      if (myTurn && s.drawn) cls.push(whyNot(s,me,c)?'no':'ok');
+      return cardHTML(c,cls.join(' '),`data-act="pick" data-i="${i}" aria-pressed="${i===sel}"`);
+    }).join('')}</div>` : '';
+  let actions='';
+  if (myTurn && s.drawn && sel>=0){
+    const c=mine.hand[sel], r=whyNot(s,me,c), hz=META[c].k==='haz';
+    actions=`<div class="actions"><button class="btn ${hz?'red':'green'}" data-act="play" ${r||busy?'disabled':''}>${hz?'Play on '+esc(nameOf(opp,s)):'Play card'}</button><button class="btn dark" data-act="discard" ${busy?'disabled':''}>Throw away</button></div>`;
+  }
+  return topBar()+stripHTML(s,opp,false)+roadHTML(s,opp,view)+
+    `<div class="mid"><button class="deck ${pulse?'pulse':''}" data-act="draw" aria-label="Draw a card, ${s.deck.length} left" ${pulse&&!busy?'':'disabled'}><div class="back"><span>1000</span></div><span class="count">${s.deck.length}</span></button>
+    <div class="slot">${top}</div>
+    <div class="msg"><span class="big">${big}</span>${small?`<span class="small">${small}</span>`:''}</div></div>`+
+    event+coup+stripHTML(s,view,true)+hand+actions+
+    (s.phase==='over'?resultHTML(s,me):'');
+}
+function resultHTML(s, me){
+  const col = x => `<div class="col"><h3>${esc(x===me?'You':nameOf(x,s))}</h3><table>${s.result[x].items.map(([l,v])=>`<tr><td>${l}</td><td>${v}</td></tr>`).join('')}<tr class="tot"><td>This hand</td><td>${s.result[x].total}</td></tr><tr><td>Game total</td><td>${s.totals[x]}</td></tr></table></div>`;
+  const champ = s.champion ? `${s.champion===me?'You win the game':esc(nameOf(s.champion,s))+' wins the game'}!` : `Hand ${s.handNo} done`;
+  const btns = me ? (s.champion
+      ? `<button class="btn green" data-act="newgame" ${busy?'disabled':''}>Start a new game</button>`
+      : `<button class="btn green" data-act="deal" ${busy?'disabled':''}>Deal next hand</button>`) : '';
+  return `<div class="overlay" role="dialog" aria-modal="true" aria-label="Scores"><div class="panel"><h2>${champ}</h2>
+    <div style="color:var(--muted)">${fmt(s.last,s)} First to ${GAME_GOAL} points wins.</div>
+    <div class="scores">${col('A')}${col('B')}</div>${btns}</div></div>`;
+}
+/* ---------- Events ---------- */
+document.addEventListener('click', e=>{
+  const el=e.target.closest('[data-act]'); if (!el || el.disabled) return;
+  const a=el.dataset.act;
+  if (a==='home'){ mode=null; sel=-1; render(); window.scrollTo(0,0); return; }
+  if (a==='go-local'){ mode='local'; if (!local || local.phase==='lobby') local=dealHand(blankTable()); render(); return; }
+  if (a==='host'){ if (!myName()){ joinErr='Type your name first.'; render(); $('nm')?.focus(); return; } joinErr=''; startHost(newCode()); return; }
+  if (a==='join'){ startGuest($('code')?.value); return; }
+  if (a==='resume-host'){
+    if (net.role==='host' && net.peer && !net.peer.destroyed){ mode='online'; render(); return; }
+    const h=loadJSON('rt1000-host'); if (h?.code) startHost(h.code, h.state); return;
+  }
+  if (a==='resume-guest'){
+    if (net.role==='guest' && net.conn?.open){ mode='online'; render(); return; }
+    const g=loadJSON('rt1000-guest'); if (g?.code) startGuest(g.code); return;
+  }
+  if (a==='copy'){
+    const text=`Let's play Road to 1000! Open ${location.href.split('#')[0]} and join with code ${net.code}`;
+    navigator.clipboard?.writeText(text).then(()=>toast('Invite copied. Paste it in a text message.'),()=>toast('Copy failed. The code is '+net.code));
+    return;
+  }
+  if (a==='log'){ showLog=!showLog; render(); return; }
+  if (a==='pick'){ const i=+el.dataset.i; sel = sel===i ? -1 : i; render(); return; }
+  if (a==='draw') return act({t:'draw'});
+  if (a==='coup') return act({t:'coup'});
+  if (a==='play') return act({t:'play',i:sel});
+  if (a==='discard') return act({t:'discard',i:sel});
+  if (a==='deal' || a==='newgame') return dealOrNew(a);
+});
+document.addEventListener('keydown', e=>{
+  if (e.target.id==='code' && e.key==='Enter'){ startGuest(e.target.value); return; }
+  const el=e.target.closest?.('[role=button][data-act]');
+  if (el && (e.key==='Enter' || e.key===' ')){ e.preventDefault(); el.click(); }
+});
+document.addEventListener('input', e=>{ if (e.target.id==='code') e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); });
+function scheduleAI(){
+  if (mode!=='local' || !local || local.phase!=='play' || local.turn!=='B' || aiTimer) return;
+  aiTimer=setTimeout(()=>{
+    aiTimer=null;
+    if (mode!=='local' || local.turn!=='B' || local.phase!=='play') return;
+    const n=apply(local,'B',aiAction(local,'B'));
+    local = n===local ? apply(local,'B',{t:'discard',i:0}) : n;
+    render();
+  }, local.drawn ? 1500 : 700);
+}
+
+/* ---------- Boot ---------- */
+(function boot(){
+  const code=(location.hash||'').slice(1).toUpperCase();
+  render();
+  if (/^[A-Z0-9]{4}$/.test(code)){ const c=$('code'); if (c) c.value=code; }
+})();
+</script>
+</body>
+</html>
