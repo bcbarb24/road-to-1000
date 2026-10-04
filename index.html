@@ -282,6 +282,23 @@ function moving(p){
 }
 function newPlayer(){ return {hand:[],battle:null,limit:false,miles:0,n200:0,dists:[],safeties:[],coups:[]}; }
 function blankTable(){ return {v:1,phase:'lobby',seats:{},totals:{A:0,B:0},handNo:0,starter:'B',rev:0}; }
+function seededShuffle(arr, seed){
+  let h=1779033703^seed.length;
+  for (let i=0;i<seed.length;i++){ h=Math.imul(h^seed.charCodeAt(i),3432918353); h=h<<13|h>>>19; }
+  const rnd=()=>{ h=Math.imul(h^h>>>16,2246822507); h=Math.imul(h^h>>>13,3266489909); h^=h>>>16; return (h>>>0)/4294967296; };
+  const d=arr.slice();
+  for (let i=d.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+  return d;
+}
+// House rule: when the draw pile runs out, shuffle the discards into a new draw pile.
+// Stops once nobody has played a card since the last reshuffle, so a hand can't go on forever.
+function refill(s){
+  if (s.deck.length || !s.discard?.length) return;
+  if ((s.shuffles||0)>0 && !s.playsSinceShuffle) return;
+  s.shuffles=(s.shuffles||0)+1; s.playsSinceShuffle=0;
+  s.deck=seededShuffle(s.discard,(s.seed||'rt')+':'+s.shuffles); s.discard=[];
+  s.log=(s.log||[]).concat(`The draw pile ran out, so the ${s.deck.length} thrown-away cards were shuffled into a new draw pile.`).slice(-60);
+}
 function shuffled(){
   const d=[]; for (const [c,n] of Object.entries(COUNTS)) for (let i=0;i<n;i++) d.push(c);
   for (let i=d.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
@@ -293,6 +310,7 @@ function dealHand(prev){
   s.players={A:newPlayer(),B:newPlayer()};
   for (let i=0;i<6;i++){ s.players.A.hand.push(s.deck.pop()); s.players.B.hand.push(s.deck.pop()); }
   s.starter = other(prev.starter||'B'); s.turn=s.starter; s.drawn=false; s.coup=null;
+  s.seed=Math.random().toString(36).slice(2,10); s.shuffles=0; s.playsSinceShuffle=0;
   s.last=`Hand ${(prev.handNo||0)+1} is dealt. First turn: %${s.starter}.`;
   s.log=[s.last];
   s.handNo=(prev.handNo||0)+1; s.result=null; s.champion=null;
@@ -335,6 +353,7 @@ function applySafety(p, c){
 }
 function nextTurn(s, again){
   if (!again) s.turn=other(s.turn);
+  refill(s);
   for (let k=0;k<2;k++){ if (s.deck.length || s.players[s.turn].hand.length) break; s.turn=other(s.turn); }
   if (!s.deck.length && !s.players.A.hand.length && !s.players.B.hand.length) return endHand(s);
   s.drawn = s.deck.length===0;
@@ -349,7 +368,7 @@ function scoreHand(s){
     if (p.coups.length) items.push([`Coup fourré ×${p.coups.length}`,300*p.coups.length]);
     if (p.miles===GOAL){
       items.push(['Trip complete',400]);
-      if (!s.deck.length) items.push(['Delayed action',300]);
+      if (!s.deck.length && !s.discard?.length) items.push(['Delayed action',300]);
       if (!p.n200) items.push(['Safe trip (no 200s)',300]);
       if (!o.miles) items.push(['Shutout',500]);
     }
@@ -378,8 +397,9 @@ function applyMove(s0, seat, a){
     me.hand.splice(i,1); applySafety(me,s.coup.card); me.coups.push(s.coup.card);
     if (s.coup.haz==='LIMIT') me.limit=false;
     s.last=`COUP FOURRÉ! %${seat} blocked the ${META[s.coup.haz].nm} with ${META[s.coup.card].nm} (+400).`;
-    if (s.deck.length) me.hand.push(s.deck.pop());
-    s.coup=null; s.drawn = s.deck.length===0;
+    s.playsSinceShuffle=(s.playsSinceShuffle||0)+1;
+    refill(s); if (s.deck.length) me.hand.push(s.deck.pop());
+    s.coup=null; refill(s); s.drawn = s.deck.length===0;
     return s;
   }
   if (a.t==='draw'){
@@ -398,6 +418,7 @@ function applyMove(s0, seat, a){
   if (a.t!=='play' || whyNot(s,seat,c)) return s0;
   me.hand.splice(a.i,1);
   const m=META[c]; let again=false;
+  s.playsSinceShuffle=(s.playsSinceShuffle||0)+1;
   if (m.k==='dist'){
     me.miles+=m.n; if (m.n===200) me.n200++; (me.dists=me.dists||[]).push(m.n);
     s.last=`%${seat} drove ${m.n} km (now ${me.miles}).`;
@@ -413,7 +434,7 @@ function applyMove(s0, seat, a){
     s.last=`%${seat} played ${m.nm}.`;
   }
   if (me.miles===GOAL){ s.last=`%${seat} reached ${GOAL} km!`; return endHand(s); }
-  if (again){ s.drawn = s.deck.length===0; if (!me.hand.length && !s.deck.length) return nextTurn(s,false); return s; }
+  if (again){ refill(s); s.drawn = s.deck.length===0; if (!me.hand.length && !s.deck.length) return nextTurn(s,false); return s; }
   return nextTurn(s,false);
 }
 
@@ -448,7 +469,7 @@ function aiAction(s, seat){
 }
 
 /* ---------- App state ---------- */
-const APP_VERSION='3 (pass and play)';
+const APP_VERSION='4 (reshuffle)';
 let mode=null;            // null (home) | 'local' | 'pass' | 'online'
 let local=null;           // practice game state
 let pass=loadJSON('rt1000-pass'); // pass-and-play game state (saved on this device)
@@ -641,6 +662,7 @@ function rulesHTML(){
   <li>Fix a hazard with its <span class="kw-f">Remedy</span>: Repairs, Gasoline, Spare Tire, Roll, or End of Limit. After a fix you need a Roll again.</li>
   <li><span class="kw-s">Safeties</span> protect you for the rest of the hand and give you another turn: Driving Ace, Extra Tank, Puncture-Proof, Right of Way (no more Stops or Speed Limits, and you never need Roll).</li>
   <li><b>Coup fourré:</b> if someone hits you with a hazard and you are holding its safety, play it right away at the start of your turn for a big bonus.</li>
+  <li>When the draw pile runs out, the thrown-away cards are shuffled into a new draw pile. If nobody plays a card through a whole pile, there's no more reshuffling: play out your hands without drawing.</li>
   <li>Scoring: 1 point per km, 100 per safety, 300 per coup fourré, 400 for finishing, plus bonuses. First to ${GAME_GOAL} points wins the game.</li>
   </ul></details>`;
 }

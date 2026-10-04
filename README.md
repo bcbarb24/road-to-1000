@@ -36,7 +36,8 @@ Two players share one iPad or phone. Tap **Pass and play** on the home screen an
   - **Puncture-Proof** (*Increvable*): no more Flat Tires.
   - **Right of Way** (*Véhicule prioritaire*): no more Stops or Speed Limits, and you never need a Roll card to drive.
 - **Coup fourré:** if someone plays a hazard on you while you hold the safety that blocks it, play that safety at the start of your next turn. It cancels the hazard and earns a 300-point bonus on top of the safety's 100.
-- Standard scoring: 1 point per km, 100 per safety, 300 for all four, 300 per coup fourré, 400 for finishing, and bonuses for a delayed action, a safe trip and a shutout. First to 5000 points wins.
+- **Reshuffle (house rule):** when the draw pile runs out, the thrown-away cards are shuffled into a new draw pile, as many times as needed. If nobody plays a card through a whole pile, reshuffling stops and the hand is played out without drawing, as in the official rules. (Officially the discard pile is never reused.)
+- Standard scoring: 1 point per km, 100 per safety, 300 for all four, 300 per coup fourré, 400 for finishing, and bonuses for a delayed action (finishing after every card has been drawn), a safe trip and a shutout. First to 5000 points wins.
 
 ## Project
 
