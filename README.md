@@ -17,6 +17,10 @@ If someone refreshes or loses connection, open the link again and tap **Rejoin**
 
 The relays are public: anyone who knew your 4-letter game code could, in principle, watch or interfere with that game. Codes are random and only game moves are sent, so this is fine for family games, but don't use it for anything private.
 
+## Pass and play (one device)
+
+Two players share one iPad or phone. Tap **Pass and play** on the home screen and enter both names. Between turns a cover screen says whose turn it is and hides the cards; the next player taps **Show my cards** when they're holding the device. The game is saved on the device, so you can close the page and pick it up later with **Continue**.
+
 ## Practice
 
 **Practice vs Robo** plays against a computer opponent on one device, with no connection needed.

@@ -47,7 +47,14 @@ h1,h2{font-family:var(--display);font-weight:400;letter-spacing:.01em;text-wrap:
 .hero p{margin:0;color:var(--muted);max-width:34ch}
 .hero svg{width:84px}
 .choices{display:grid;gap:12px;grid-template-columns:1fr}
-@media (min-width:640px){.choices{grid-template-columns:1fr 1fr}}
+@media (min-width:640px){.choices{grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))}}
+.cover{background:var(--asphalt-2);border:1px solid var(--line);border-radius:20px;padding:28px 18px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.cover .lbl{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:900}
+.cover .who{font-family:var(--display);font-size:clamp(2rem,9vw,3.4rem);color:var(--paint);line-height:1}
+.cover .btn{width:100%;max-width:26rem;font-size:1.15rem;padding:18px}
+.cover .event{width:100%;max-width:34rem;text-align:left}
+.scoreline{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;color:var(--muted);font-weight:800}
+.scoreline b{color:#fff}
 .choice{background:var(--asphalt-2);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:10px;color:#eef0f3;text-align:left}
 .choice h2{font-size:1.25rem}
 .choice p{margin:0;color:var(--muted);font-size:.95rem}
@@ -441,9 +448,11 @@ function aiAction(s, seat){
 }
 
 /* ---------- App state ---------- */
-const APP_VERSION='2 (relay)';
-let mode=null;            // null (home) | 'local' | 'online'
+const APP_VERSION='3 (pass and play)';
+let mode=null;            // null (home) | 'local' | 'pass' | 'online'
 let local=null;           // practice game state
+let pass=loadJSON('rt1000-pass'); // pass-and-play game state (saved on this device)
+let passView=null;        // seat whose cards are showing in pass-and-play; null = covered
 let online=null;          // shared table state (the host owns the real copy)
 let busy=false, showLog=false, sel=-1, aiTimer=null, joinErr='';
 const net={role:null, code:'', clients:[], status:'idle', msg:'', hostRev:-1, everUp:false, presence:new Map(), seen:new Set(), timer:null, timer2:null};
@@ -459,9 +468,10 @@ function localKey(){
 }
 const myKey=localKey();
 
-function state(){ return mode==='local' ? local : online; }
+function state(){ return mode==='local' ? local : mode==='pass' ? pass : online; }
 function mySeat(s){
   if (mode==='local') return 'A';
+  if (mode==='pass') return passView;
   if (!s?.seats) return null;
   return ['A','B'].find(x=>s.seats[x]?.key===myKey) || null;
 }
@@ -586,6 +596,7 @@ function act(a){
   if (n===s) return;
   sel=-1;
   if (mode==='local'){ local=n; render(); return; }
+  if (mode==='pass'){ pass=n; if (n.phase==='play' && n.turn!==seat) passView=null; save('rt1000-pass',pass); render(); window.scrollTo(0,0); return; }
   if (net.role==='host'){ hostCommit(n); return; }
   if (!linkUp()){ toast('Not connected right now. Reconnecting…'); return; }
   online=n; render();
@@ -593,17 +604,21 @@ function act(a){
 }
 function dealOrNew(kind){
   if (mode==='local'){ local = kind==='deal' ? dealHand(local) : newGame(local); render(); return; }
+  if (mode==='pass'){ pass = kind==='deal' ? dealHand(pass) : newGame(pass); passView=null; save('rt1000-pass',pass); render(); window.scrollTo(0,0); return; }
   if (net.role==='host'){ if (!online.seats.B){ toast('Wait for the other player to join first.'); return; } hostCommit(kind==='deal' ? dealHand(online) : newGame(online)); return; }
   if (linkUp()) publishAll('up',{t:kind,id:rid()}); else toast('Not connected right now. Reconnecting…');
 }
 
 /* ---------- Rendering ---------- */
 function render(){
-  const app=$('app'), focus=document.activeElement?.id, nmv=$('nm')?.value, cdv=$('code')?.value;
+  const app=$('app'), focus=document.activeElement?.id, nmv=$('nm')?.value, cdv=$('code')?.value, p1v=$('p1')?.value, p2v=$('p2')?.value;
   if (!mode) app.innerHTML=homeHTML();
   else if (mode==='online' && (!online || online.phase==='lobby')) app.innerHTML=lobbyHTML();
-  else app.innerHTML=tableHTML(state());
+  else if (mode==='pass' && pass.phase==='play' && passView!==pass.turn) app.innerHTML=coverHTML(pass);
+  else { if (mode==='pass' && !passView) passView='A'; app.innerHTML=tableHTML(state()); }
   const nm=$('nm'); if (nm) nm.value = nmv ?? (load('rt1000-name')||'');
+  const p1=$('p1'); if (p1 && !p1.value) p1.value = p1v ?? (load('rt1000-name')||'');
+  const p2=$('p2'); if (p2 && !p2.value) p2.value = p2v ?? (load('rt1000-p2')||'');
   const cd=$('code'); if (cd && cdv!=null) cd.value=cdv;
   if (focus && $(focus)) $(focus).focus();
   scheduleAI();
@@ -629,6 +644,14 @@ function rulesHTML(){
   <li>Scoring: 1 point per km, 100 per safety, 300 per coup fourré, 400 for finishing, plus bonuses. First to ${GAME_GOAL} points wins the game.</li>
   </ul></details>`;
 }
+function coverHTML(s){
+  const who=esc(nameOf(s.turn,s)), log=s.log||[];
+  const plays = log.length ? `<div class="event"><div class="ev-title">Latest plays</div><ul class="plays recent">${log.slice(-3).reverse().map((t,i)=>`<li class="${i===0?'now':''}">${fmt(t,s)}</li>`).join('')}</ul></div>` : '';
+  return topBar()+`<div class="cover"><span class="lbl">Pass the device to</span><span class="who">${who}</span>
+    <div class="scoreline"><span>${esc(nameOf('A',s))}: <b>${s.players.A.miles} km</b></span><span>${esc(nameOf('B',s))}: <b>${s.players.B.miles} km</b></span></div>
+    ${plays}<button class="btn green" data-act="reveal">I'm ${who}. Show my cards</button>
+    <span class="small" style="color:var(--muted);font-size:.85rem">Cards stay hidden until ${who} taps the button.</span></div>`+roadHTML(s,other(s.turn),s.turn);
+}
 function homeHTML(){
   const h=loadJSON('rt1000-host'), g=loadJSON('rt1000-guest');
   const resume = h?.code ? `<button class="btn dark" data-act="resume-host">Go back to your game (code ${esc(h.code)})</button>`
@@ -641,6 +664,12 @@ function homeHTML(){
       <div class="joinrow"><label for="code" class="sr">Game code</label><input id="code" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="CODE"><button class="btn green" data-act="join">Join</button></div>
       ${joinErr?`<div class="err">${esc(joinErr)}</div>`:''}
       ${resume}
+    </div>
+    <div class="choice"><h2>Pass and play</h2><p>Two players share one iPad or phone. Cards are hidden while you hand it over.</p>
+      <div class="field"><label for="p1"><b>Player 1</b></label><input id="p1" maxlength="20" autocomplete="off" placeholder="e.g. Uncle Brian"></div>
+      <div class="field"><label for="p2"><b>Player 2</b></label><input id="p2" maxlength="20" autocomplete="off" placeholder="e.g. Ava"></div>
+      <button class="btn" data-act="go-pass">Start pass and play</button>
+      ${pass && pass.phase && pass.phase!=='lobby' && !pass.champion ? `<button class="btn dark" data-act="resume-pass">Continue ${esc(pass.seats?.A?.name||'')} vs ${esc(pass.seats?.B?.name||'')}</button>` : ''}
     </div>
     <div class="choice"><h2>Practice vs Robo</h2><p>Play against the computer on this device to learn the cards. Works offline too.</p><button class="btn dark" data-act="go-local">${local && local.phase!=='lobby' ? 'Continue practice' : 'Start practice'}</button></div>
   </div>
@@ -729,13 +758,14 @@ function tableHTML(s){
     (s.phase==='over'?resultHTML(s,me):'');
 }
 function resultHTML(s, me){
+  const seat0=me; if (mode==='pass') me=null;
   const col = x => `<div class="col"><h3>${esc(x===me?'You':nameOf(x,s))}</h3><table>${s.result[x].items.map(([l,v])=>`<tr><td>${l}</td><td>${v}</td></tr>`).join('')}<tr class="tot"><td>This hand</td><td>${s.result[x].total}</td></tr><tr><td>Game total</td><td>${s.totals[x]}</td></tr></table></div>`;
   const champ = s.champion ? `${s.champion===me?'You win the game':esc(nameOf(s.champion,s))+' wins the game'}!` : `Hand ${s.handNo} done`;
-  const btns = me ? (s.champion
+  const btns = (me||seat0) ? (s.champion
       ? `<button class="btn green" data-act="newgame" ${busy?'disabled':''}>Start a new game</button>`
       : `<button class="btn green" data-act="deal" ${busy?'disabled':''}>Deal next hand</button>`) : '';
   return `<div class="overlay" role="dialog" aria-modal="true" aria-label="Scores"><div class="panel"><h2>${champ}</h2>
-    <div style="color:var(--muted)">${fmt(s.last,s)} First to ${GAME_GOAL} points wins.</div>
+    <div style="color:var(--muted)">${mode==='pass' ? esc(s.last||'').replace(/%([AB])/g,(_,x)=>esc(nameOf(x,s))) : fmt(s.last,s)} First to ${GAME_GOAL} points wins.</div>
     <div class="scores">${col('A')}${col('B')}</div>${btns}</div></div>`;
 }
 /* ---------- Events ---------- */
@@ -743,6 +773,16 @@ document.addEventListener('click', e=>{
   const el=e.target.closest('[data-act]'); if (!el || el.disabled) return;
   const a=el.dataset.act;
   if (a==='home'){ mode=null; sel=-1; render(); window.scrollTo(0,0); return; }
+  if (a==='go-pass'){
+    const n1=($('p1')?.value||'').trim().slice(0,20), n2=($('p2')?.value||'').trim().slice(0,20);
+    if (!n1 || !n2){ toast('Type both players\' names first.'); (!n1?$('p1'):$('p2'))?.focus(); return; }
+    save('rt1000-p2',n2); if (!load('rt1000-name')) save('rt1000-name',n1);
+    mode='pass'; passView=null;
+    pass=dealHand({...blankTable(), seats:{A:{key:'p1',name:n1},B:{key:'p2',name:n2}}});
+    save('rt1000-pass',pass); render(); window.scrollTo(0,0); return;
+  }
+  if (a==='resume-pass'){ if (pass){ mode='pass'; passView=null; render(); window.scrollTo(0,0); } return; }
+  if (a==='reveal'){ if (mode==='pass'){ passView=pass.turn; sel=-1; render(); window.scrollTo(0,0); } return; }
   if (a==='go-local'){ mode='local'; if (!local || local.phase==='lobby') local=dealHand(blankTable()); render(); return; }
   if (a==='host'){ if (!myName()){ joinErr='Type your name first.'; render(); $('nm')?.focus(); return; } joinErr=''; startHost(newCode()); return; }
   if (a==='join'){ startGuest($('code')?.value); return; }
