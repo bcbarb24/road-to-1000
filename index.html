@@ -10,16 +10,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Bowlby+One&family=Nunito:ital,wght@0,500;0,700;0,800;0,900;1,600&display=swap">
-<link rel="stylesheet" href="game.css?v=6">
+<link rel="stylesheet" href="game.css?v=7">
 <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 </head>
 <body>
 <div class="wrap" id="app"></div>
 <div class="toast" id="toast" hidden></div>
-<script src="game-core.js?v=6"></script>
+<script src="game-core.js?v=7"></script>
 <script>
 /* ---------- App state ---------- */
-const APP_VERSION='5.1';
+const APP_VERSION='5.2';
 let mode=null;            // null (home) | 'local' | 'pass' | 'online'
 let local=null;           // practice game state
 let pass=loadJSON('rt1000-pass'); // pass-and-play game state (saved on this device)
@@ -275,6 +275,7 @@ document.addEventListener('click', e=>{
   if (a==='log'){ showLog=!showLog; render(); return; }
   if (a==='pick'){ const i=+el.dataset.i; sel = sel===i ? -1 : i; render(); return; }
   if (a==='draw') return act({t:'draw'});
+  if (a==='take') return act({t:'take'});
   if (a==='coup') return act({t:'coup'});
   if (a==='play') return act({t:'play',i:sel});
   if (a==='discard') return act({t:'discard',i:sel});

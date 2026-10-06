@@ -159,6 +159,9 @@ function whyNot(s, seat, c){
   const need = Object.keys(HAZ).find(h=>FIX[h]===c);
   return me.battle===need ? null : `Only useful when you have a ${META[need].nm}.`;
 }
+function whyNotDiscard(s, seat, i){
+  return (s.took!=null && s.turn===seat && i===s.took) ? "You just took this card from the discard pile, so you can't throw it straight back. Play it or throw away a different card." : null;
+}
 function applySafety(p, c){
   p.safeties.push(c);
   for (const h of Object.keys(HAZ)) if (SAFE_FOR[h]===c && p.battle===h) p.battle='SAFE';
@@ -169,7 +172,7 @@ function nextTurn(s, again){
   refill(s);
   for (let k=0;k<2;k++){ if (s.deck.length || s.players[s.turn].hand.length) break; s.turn=other(s.turn); }
   if (!s.deck.length && !s.players.A.hand.length && !s.players.B.hand.length) return endHand(s);
-  s.drawn = s.deck.length===0;
+  s.drawn = s.deck.length===0; s.took=null;
   return s;
 }
 function scoreHand(s){
@@ -217,13 +220,22 @@ function applyMove(s0, seat, a){
   }
   if (a.t==='draw'){
     if (s.drawn || !s.deck.length) return s0;
-    me.hand.push(s.deck.pop()); s.drawn=true; s.coup=null;
+    me.hand.push(s.deck.pop()); s.drawn=true; s.coup=null; s.took=null;
+    return s;
+  }
+  // House rule: instead of drawing, take the top card of the discard pile (only while the draw pile has cards).
+  if (a.t==='take'){
+    if (s.drawn || !s.deck.length || !s.discard?.length) return s0;
+    const t=s.discard.pop(); me.hand.push(t); s.drawn=true; s.coup=null; s.took=me.hand.length-1;
+    s.last=`%${seat} took ${META[t].nm} from the discard pile.`;
     return s;
   }
   if (!s.drawn && s.deck.length) return s0;
   const c=me.hand[a.i]; if (!c) return s0;
-  s.coup=null;
+  const tookIdx=s.took;
+  s.coup=null; s.took=null;
   if (a.t==='discard'){
+    if (tookIdx!=null && a.i===tookIdx) return s0;   // can't throw back the card just taken from the discard pile
     me.hand.splice(a.i,1); s.discard.push(c);
     s.last=`%${seat} threw away ${META[c].nm}.`;
     return nextTurn(s,false);
@@ -254,21 +266,29 @@ function applyMove(s0, seat, a){
 /* ---------- Computer opponent ---------- */
 function aiAction(s, seat){
   if (s.coup && s.coup.seat===seat && !s.drawn) return {t:'coup'};
-  if (!s.drawn && s.deck.length) return {t:'draw'};
   const me=s.players[seat], op=s.players[other(seat)];
+  const value=c=>{
+    const m=META[c];
+    if (m.k==='dist') return 40+m.n/10;
+    if (m.k==='safe') return ((me.battle && SAFE_FOR[me.battle]===c) || (c==='ROW' && me.limit)) ? 95 : (s.deck.length<12 ? 35 : 20);
+    if (m.k==='haz') return (c==='LIMIT'?50:70)+(op.miles>=me.miles?8:0);
+    return c==='ROLL'?88:90;
+  };
+  if (!s.drawn && s.deck.length){
+    const top=s.discard?.[s.discard.length-1];
+    if (top && !whyNot(s,seat,top) && (value(top)>=70 || META[top].n>=100)) return {t:'take'};
+    return {t:'draw'};
+  }
   let best=-1, bi=-1;
   me.hand.forEach((c,i)=>{
     if (whyNot(s,seat,c)) return;
-    const m=META[c]; let v;
-    if (m.k==='dist') v=40+m.n/10;
-    else if (m.k==='safe') v=((me.battle && SAFE_FOR[me.battle]===c) || (c==='ROW' && me.limit)) ? 95 : (s.deck.length<12 ? 35 : 20);
-    else if (m.k==='haz') v=(c==='LIMIT'?50:70)+(op.miles>=me.miles?8:0);
-    else v=c==='ROLL'?88:90;
+    const v=value(c);
     if (v>best){best=v;bi=i;}
   });
   if (bi>=0 && best>=30) return {t:'play',i:bi};
-  let worst=1e9, wi=0;
+  let worst=1e9, wi=me.hand.findIndex((c,i)=>!whyNotDiscard(s,seat,i));
   me.hand.forEach((c,i)=>{
+    if (whyNotDiscard(s,seat,i)) return;
     const m=META[c]; let v;
     if (m.k==='safe') v=1000;
     else if (m.k==='dist') v=(me.miles+m.n>GOAL || (m.n===200 && me.n200>=2)) ? 0 : m.n/5;
@@ -300,6 +320,7 @@ function rulesHTML(){
   <li>Fix a hazard with its <span class="kw-f">Remedy</span>: Repairs, Gasoline, Spare Tire, Roll, or End of Limit. After a fix you need a Roll again.</li>
   <li><span class="kw-s">Safeties</span> protect you for the rest of the hand and give you another turn: Driving Ace, Extra Tank, Puncture-Proof, Right of Way (no more Stops or Speed Limits, and you never need Roll).</li>
   <li><b>Coup fourré:</b> if someone hits you with a hazard and you are holding its safety, play it right away at the start of your turn for a big bonus.</li>
+  <li>House rule: at the start of your turn you can take the top card of the discard pile instead of drawing. You can't throw that card straight back the same turn.</li>
   <li>When the draw pile runs out, the thrown-away cards are shuffled into a new draw pile. If nobody plays a card through a whole pile, there's no more reshuffling: play out your hands without drawing.</li>
   <li>Scoring: 1 point per km, 100 per safety, 300 per coup fourré, 400 for finishing, plus bonuses. First to ${GAME_GOAL} points wins the game.</li>
   </ul></details>`;
@@ -340,23 +361,27 @@ function tableHTML(s){
   const me=mySeat(s), view=me||'A', opp=other(view), mine=s.players[view];
   const myTurn = !!me && s.phase==='play' && s.turn===me;
   const canCoup = myTurn && s.coup && s.coup.seat===me && !s.drawn;
+  const topCard = s.discard?.length ? s.discard[s.discard.length-1] : null;
+  const canTake = myTurn && !s.drawn && s.deck.length>0 && !!topCard;
   if (sel>=mine.hand.length) sel=-1;
   let big, small='';
   if (!me) { big='Both seats are taken. You are watching.'; }
   else if (s.phase!=='play') big='Hand over.';
   else if (!myTurn) big=`Waiting for ${esc(nameOf(opp,s))}…`;
   else if (canCoup) big='Coup fourré chance!';
-  else if (!s.drawn) { big='Your turn! Tap the deck to draw.'; }
+  else if (!s.drawn) { big = canTake ? `Your turn! Tap the deck to draw, or take the ${META[topCard].nm} from the discard pile.` : 'Your turn! Tap the deck to draw.'; }
   else if (sel<0) { big='Pick a card to play or throw away.'; small='Cards with a green dot can be played now.'; }
-  else { const r=whyNot(s,me,mine.hand[sel]); big=r?esc(r):`Ready: ${META[mine.hand[sel]].nm}`; small=r?'You can still throw it away.':''; }
+  else { const r=whyNot(s,me,mine.hand[sel]), rd=whyNotDiscard(s,me,sel); big=r?esc(r):`Ready: ${META[mine.hand[sel]].nm}`; small = rd ? "You took this from the discard pile, so you can't throw it away this turn." : r ? 'You can still throw it away.' : ''; }
   if (busy) small='Saving…';
-  const top = s.discard?.length ? cardHTML(s.discard[s.discard.length-1],'mini') : `<div class="empty">Discard</div>`;
   const pulse = myTurn && !s.drawn && !canCoup && s.deck.length;
+  const top = !topCard ? `<div class="empty">Discard</div>`
+    : canTake ? `<button class="pile ${pulse?'pulse':''}" data-act="take" aria-label="Take ${META[topCard].nm} from the discard pile" ${busy?'disabled':''}>${cardHTML(topCard,'mini')}</button>`
+    : cardHTML(topCard,'mini');
   const log = (s.log && s.log.length) ? s.log : (s.last ? [s.last] : []);
   const recent = log.slice(-3).reverse();
   const event = log.length ? `<div class="event" role="status"><div class="ev-title">Latest plays</div><ul class="plays recent">${recent.map((t,i)=>`<li class="${i===0?'now':''}">${fmt(t,s)}</li>`).join('')}</ul>${log.length>3?`<button class="linkish" data-act="log">${showLog?'Hide':'Show'} all ${log.length} plays this hand</button>`:''}${showLog&&log.length>3?`<ol class="plays all" reversed>${log.slice().reverse().map(t=>`<li>${fmt(t,s)}</li>`).join('')}</ol>`:''}</div>` : '';
   const coup = canCoup ? `<div class="coup"><b>Coup fourré!</b><span>${esc(nameOf(opp,s))} hit you with ${META[s.coup.haz].nm}, but you are holding ${META[s.coup.card].nm}. Block it now for a bonus and keep your turn.</span>
-    <div class="row"><button class="btn" data-act="coup">Coup fourré! (+400)</button><button class="btn dark" data-act="draw">No thanks, draw</button></div></div>` : '';
+    <div class="row"><button class="btn" data-act="coup">Coup fourré! (+400)</button><button class="btn dark" data-act="draw">No thanks, draw</button>${canTake?`<button class="btn dark" data-act="take">No thanks, take the ${META[topCard].nm}</button>`:''}</div></div>` : '';
   const hand = me ? `<div class="hand">${mine.hand.map((c,i)=>{
       const cls=[i===sel?'sel':''];
       if (myTurn && s.drawn) cls.push(whyNot(s,me,c)?'no':'ok');
@@ -365,11 +390,11 @@ function tableHTML(s){
   let actions='';
   if (myTurn && s.drawn && sel>=0){
     const c=mine.hand[sel], r=whyNot(s,me,c), hz=META[c].k==='haz';
-    actions=`<div class="actions"><button class="btn ${hz?'red':'green'}" data-act="play" ${r||busy?'disabled':''}>${hz?'Play on '+esc(nameOf(opp,s)):'Play card'}</button><button class="btn dark" data-act="discard" ${busy?'disabled':''}>Throw away</button></div>`;
+    actions=`<div class="actions"><button class="btn ${hz?'red':'green'}" data-act="play" ${r||busy?'disabled':''}>${hz?'Play on '+esc(nameOf(opp,s)):'Play card'}</button><button class="btn dark" data-act="discard" ${busy||whyNotDiscard(s,me,sel)?'disabled':''}>Throw away</button></div>`;
   }
   return topBar()+stripHTML(s,opp,false)+roadHTML(s,opp,view)+
     `<div class="mid"><button class="deck ${pulse?'pulse':''}" data-act="draw" aria-label="Draw a card, ${s.deck.length} left" ${pulse&&!busy?'':'disabled'}><div class="back"><span>1000</span></div><span class="count">${s.deck.length}</span></button>
-    <div class="slot">${top}</div>
+    <div class="slot">${top}${canTake?'Tap to take':''}</div>
     <div class="msg"><span class="big">${big}</span>${small?`<span class="small">${small}</span>`:''}</div></div>`+
     event+coup+stripHTML(s,view,true)+hand+actions+
     (s.phase==='over'?resultHTML(s,me):'');

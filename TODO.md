@@ -1,6 +1,6 @@
 # To do
 
-Last updated October 3, 2026.
+Last updated October 5, 2026.
 
 ## Members version (needed before others can use it)
 
@@ -17,6 +17,7 @@ Last updated October 3, 2026.
 - [ ] **Test the members version locally** with the Supabase CLI and Docker (full local copy of sign-in, database, live updates and a test inbox).
 - [ ] **Stats dashboard:** point Metabase (runs in Docker) at the Supabase database to chart players, win rates and points.
 - [ ] **Card art:** decide whether to switch to one of the alternatives in [`design/`](design/art-options.png). The current design stays for now.
+- [ ] **"Too far" hint (tabled Oct 5):** make it clearer when a distance card would go past 1000 km (e.g. a label on the card or a pop-up message). The rule itself is correct: you must finish at exactly 1000.
 - [ ] **Reshuffle setting:** optionally make the discard reshuffle a choice before dealing (Never / Once / Every time). It is currently always on.
 - [ ] **Delete the old Claude-hosted prototype** (https://claude.ai/artifact/MegbGUAY1ZMGSZk9ySwiGe) now that the GitHub version replaces it.
 
@@ -26,3 +27,4 @@ Last updated October 3, 2026.
 - [x] Members version: sign-in with approved emails, saved games, stats, admin page, database security rules.
 - [x] Owner's Gmail removed from the repository files and history; GitHub email privacy settings turned on.
 - [x] Disclaimer added to both versions and the README.
+- [x] House rule: take the top discard instead of drawing (can't throw it straight back).
