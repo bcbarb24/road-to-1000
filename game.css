@@ -158,6 +158,11 @@ details.rules ul{padding-left:1.1rem;margin:.6rem 0 0;display:grid;gap:6px;max-w
 .joinrow input{flex:1;min-width:0;background:var(--asphalt);border:1px solid var(--line);color:#fff;border-radius:12px;padding:12px;font-size:1.3rem;font-family:var(--cond);letter-spacing:.2em;text-transform:uppercase}
 .joinrow .btn{flex:none}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.road.extended{box-shadow:0 0 0 2px var(--paint) inset}
+.ext-label{font-size:.72rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--paint);text-align:center}
+.confirm-over{background:var(--asphalt-2);border:2px solid var(--paint);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;position:sticky;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);z-index:2}
+.confirm-over b{font-family:var(--display);font-weight:400;font-size:1.2rem;color:var(--paint)}
+.confirm-over span{color:#dfe2e8;line-height:1.4}
 .pile{border:0;background:none;padding:0;border-radius:8px;cursor:pointer}
 .pile.pulse .card{animation:pulse 1.2s ease-in-out infinite}
 .disclaimer{text-align:center;color:var(--muted);font-size:.75rem;line-height:1.45;margin:0 auto;max-width:44rem}

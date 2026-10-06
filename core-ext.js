@@ -28,9 +28,6 @@ const HAZ = {ACC:1,OUT:1,FLAT:1,STOP:1};
 const SAFE_FOR = {ACC:'ACE',OUT:'TANK',FLAT:'PUNCT',STOP:'ROW',LIMIT:'ROW'};
 const FIX = {ACC:'REP',OUT:'GAS',FLAT:'SPARE',STOP:'ROLL',LIMIT:'ENDLIM'};
 const GOAL = 1000, GAME_GOAL = 5000;
-const EXT_GOAL = 1500, EXT_BONUS = 200;   // house rule: passing 1000 extends the race to 1500
-const goalOf = s => s?.goal || GOAL;
-const overplays = (s, seat, c) => META[c]?.k==='dist' && goalOf(s)===GOAL && s.players[seat].miles < GOAL && s.players[seat].miles + META[c].n > GOAL;
 
 const K='#1c1e23', R='#e0312b', B='#2f8fd8', L='#b5d334', G='#2e9a4a', W='#fff';
 const ln=(d,c=K,w=2)=>`<path d="${d}" stroke="${c}" stroke-width="${w}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
@@ -126,8 +123,8 @@ function dealHand(prev){
   s.players={A:newPlayer(),B:newPlayer()};
   for (let i=0;i<6;i++){ s.players.A.hand.push(s.deck.pop()); s.players.B.hand.push(s.deck.pop()); }
   s.starter = other(prev.starter||'B'); s.turn=s.starter; s.drawn=false; s.coup=null;
+  s.goal=1000;
   s.seed=Math.random().toString(36).slice(2,10); s.shuffles=0; s.playsSinceShuffle=0;
-  s.goal=GOAL; s.extendedBy=null; s.tookNow=false; s.oppTook=false;
   s.last=`Hand ${(prev.handNo||0)+1} is dealt. First turn: %${s.starter}.`;
   s.log=[s.last];
   s.handNo=(prev.handNo||0)+1; s.result=null; s.champion=null;
@@ -141,8 +138,9 @@ function whyNot(s, seat, c){
   if (m.k==='dist'){
     if (!moving(me)) return me.battle && HAZ[me.battle] ? `You have a ${META[me.battle].nm}. Fix it with ${META[FIX[me.battle]].nm} first.` : 'You need a green light (Roll) before you can drive.';
     if (me.limit && m.n>50) return 'Speed limit! Only 25 or 50 until you play End of Limit.';
-    const goal=goalOf(s);
-    if (me.miles+m.n>goal && !overplays(s,seat,c)) return `That would go past ${goal} km. You need exactly ${goal-me.miles} more.`;
+    const goal=s.goal||GOAL;
+    if (me.miles+m.n>goal && !(goal===1000 && me.miles<1000)) return `That would go past ${goal} km.`;
+    if (goal===1000 && me.miles+m.n>1500) return 'too far even for 1500';
     if (m.n===200 && me.n200>=2) return 'Only two 200s are allowed per hand.';
     return null;
   }
@@ -164,11 +162,6 @@ function whyNot(s, seat, c){
   const need = Object.keys(HAZ).find(h=>FIX[h]===c);
   return me.battle===need ? null : `Only useful when you have a ${META[need].nm}.`;
 }
-function whyNotTake(s, seat){
-  if (s.drawn || !s.discard?.length || !s.deck.length) return 'Nothing to take.';
-  if (s.oppTook) return `${nameOf(other(seat),s)} took from the discard pile last turn, so you need to draw from the deck this turn.`;
-  return null;
-}
 function whyNotDiscard(s, seat, i){
   return (s.took!=null && s.turn===seat && i===s.took) ? "You just took this card from the discard pile, so you can't throw it straight back. Play it or throw away a different card." : null;
 }
@@ -178,7 +171,7 @@ function applySafety(p, c){
   if (c==='ROW') p.limit=false;
 }
 function nextTurn(s, again){
-  if (!again){ s.oppTook=!!s.tookNow; s.tookNow=false; s.turn=other(s.turn); }
+  if (!again) s.turn=other(s.turn);
   refill(s);
   for (let k=0;k<2;k++){ if (s.deck.length || s.players[s.turn].hand.length) break; s.turn=other(s.turn); }
   if (!s.deck.length && !s.players.A.hand.length && !s.players.B.hand.length) return endHand(s);
@@ -192,9 +185,8 @@ function scoreHand(s){
     if (p.safeties.length) items.push([`Safeties ×${p.safeties.length}`,100*p.safeties.length]);
     if (p.safeties.length===4) items.push(['All four safeties',300]);
     if (p.coups.length) items.push([`Coup fourré ×${p.coups.length}`,300*p.coups.length]);
-    if (p.miles===goalOf(s)){
+    if (p.miles===(s.goal||GOAL)){
       items.push(['Trip complete',400]);
-      if (goalOf(s)===EXT_GOAL) items.push(['Extended trip (1500 km)',EXT_BONUS]);
       if (!s.deck.length && !s.discard?.length) items.push(['Delayed action',300]);
       if (!p.n200) items.push(['Safe trip (no 200s)',300]);
       if (!o.miles) items.push(['Shutout',500]);
@@ -236,8 +228,8 @@ function applyMove(s0, seat, a){
   }
   // House rule: instead of drawing, take the top card of the discard pile (only while the draw pile has cards).
   if (a.t==='take'){
-    if (s.drawn || !s.deck.length || !s.discard?.length || s.oppTook) return s0;   // safeguard: not two takes in a row
-    const t=s.discard.pop(); me.hand.push(t); s.drawn=true; s.coup=null; s.took=me.hand.length-1; s.tookNow=true;
+    if (s.drawn || !s.deck.length || !s.discard?.length) return s0;
+    const t=s.discard.pop(); me.hand.push(t); s.drawn=true; s.coup=null; s.took=me.hand.length-1;
     s.last=`%${seat} took ${META[t].nm} from the discard pile.`;
     return s;
   }
@@ -256,9 +248,8 @@ function applyMove(s0, seat, a){
   const m=META[c]; let again=false;
   s.playsSinceShuffle=(s.playsSinceShuffle||0)+1;
   if (m.k==='dist'){
-    me.miles+=m.n; if (m.n===200) me.n200++; (me.dists=me.dists||[]).push(m.n);
+    me.miles+=m.n; if (m.n===200) me.n200++; if ((s.goal||GOAL)===1000 && me.miles>1000){ s.goal=1500; s.extendedBy=seat; s.extendedAt=me.miles; } (me.dists=me.dists||[]).push(m.n);
     s.last=`%${seat} drove ${m.n} km (now ${me.miles}).`;
-    if (goalOf(s)===GOAL && me.miles>GOAL){ s.goal=EXT_GOAL; s.extendedBy=seat; s.last=`%${seat} drove ${m.n} km to ${me.miles} and passed ${GOAL}! The race now goes to ${EXT_GOAL} km for both players.`; }
   } else if (m.k==='safe'){
     applySafety(me,c); again=true;
     s.last=`%${seat} played the safety ${m.nm} and gets another turn.`;
@@ -270,7 +261,7 @@ function applyMove(s0, seat, a){
     if (c==='ENDLIM'){ me.limit=false; me.speedTop='ENDLIM'; } else me.battle=c;
     s.last=`%${seat} played ${m.nm}.`;
   }
-  if (me.miles===goalOf(s)){ s.last=`%${seat} reached ${goalOf(s)} km!`; return endHand(s); }
+  if (me.miles===(s.goal||GOAL)){ s.last=`%${seat} reached ${GOAL} km!`; return endHand(s); }
   if (again){ refill(s); s.drawn = s.deck.length===0; if (!me.hand.length && !s.deck.length) return nextTurn(s,false); return s; }
   return nextTurn(s,false);
 }
@@ -281,14 +272,14 @@ function aiAction(s, seat){
   const me=s.players[seat], op=s.players[other(seat)];
   const value=c=>{
     const m=META[c];
-    if (m.k==='dist') return overplays(s,seat,c) ? (me.miles>=950 && Math.random()<0.35 ? 32 : 25) : 40+m.n/10;   // overplay mainly when close and stuck
+    if (m.k==='dist') return 40+m.n/10;
     if (m.k==='safe') return ((me.battle && SAFE_FOR[me.battle]===c) || (c==='ROW' && me.limit)) ? 95 : (s.deck.length<12 ? 35 : 20);
     if (m.k==='haz') return (c==='LIMIT'?50:70)+(op.miles>=me.miles?8:0);
     return c==='ROLL'?88:90;
   };
   if (!s.drawn && s.deck.length){
     const top=s.discard?.[s.discard.length-1];
-    if (top && !s.oppTook && !whyNot(s,seat,top) && !overplays(s,seat,top) && (value(top)>=70 || META[top].n>=100)) return {t:'take'};
+    if (top && !whyNot(s,seat,top) && (value(top)>=70 || META[top].n>=100)) return {t:'take'};
     return {t:'draw'};
   }
   let best=-1, bi=-1;
@@ -303,7 +294,7 @@ function aiAction(s, seat){
     if (whyNotDiscard(s,seat,i)) return;
     const m=META[c]; let v;
     if (m.k==='safe') v=1000;
-    else if (m.k==='dist') v=((me.miles+m.n>goalOf(s) && !overplays(s,seat,c)) || (m.n===200 && me.n200>=2)) ? 0 : overplays(s,seat,c) ? m.n/20 : m.n/5;
+    else if (m.k==='dist') v=(me.miles+m.n>GOAL || (m.n===200 && me.n200>=2)) ? 0 : m.n/5;
     else if (m.k==='haz') v=has(op,SAFE_FOR[c]) ? 1 : 45;
     else if (c==='ROLL') v=has(me,'ROW') ? 1 : 60;
     else { const h=Object.keys(FIX).find(k=>FIX[k]===c); v=has(me,SAFE_FOR[h]) ? 1 : 30-8*(me.hand.filter(x=>x===c).length-1); }
@@ -322,12 +313,6 @@ function loadJSON(k){ try{ return JSON.parse(load(k)||'null'); }catch(e){ return
 function toast(t){ const el=$('toast'); el.textContent=t; el.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>el.hidden=true,3500); }
 
 /* ---------- Shared rendering ---------- */
-let overAsk=-1;   // index of a distance card waiting for "extend the race?" confirmation
-function playSelected(confirmed){
-  const s=state(), me=mySeat(s), c=s?.players?.[me]?.hand?.[sel];
-  if (c && overplays(s,me,c) && !whyNot(s,me,c) && !(confirmed && overAsk===sel)){ overAsk=sel; render(); return; }
-  overAsk=-1; act({t:'play',i:sel});
-}
 const DISCLAIMER='Road to 1000 is an independent fan project inspired by Mille Bornes. It is not affiliated with or endorsed by Dujardin, Asmodee or Hasbro. Mille Bornes is a trademark of its owner.';
 function disclaimerHTML(){ return `<p class="disclaimer">${DISCLAIMER}</p>`; }
 function rulesHTML(){
@@ -338,10 +323,9 @@ function rulesHTML(){
   <li>Fix a hazard with its <span class="kw-f">Remedy</span>: Repairs, Gasoline, Spare Tire, Roll, or End of Limit. After a fix you need a Roll again.</li>
   <li><span class="kw-s">Safeties</span> protect you for the rest of the hand and give you another turn: Driving Ace, Extra Tank, Puncture-Proof, Right of Way (no more Stops or Speed Limits, and you never need Roll).</li>
   <li><b>Coup fourré:</b> if someone hits you with a hazard and you are holding its safety, play it right away at the start of your turn for a big bonus.</li>
-  <li>House rule: at the start of your turn you can take the top card of the discard pile instead of drawing. You can't throw that card straight back the same turn, and you can't take one if your opponent took one on their last turn.</li>
-  <li>House rule: you may play distance that goes past 1000 km. That extends the race to exactly 1500 km for both players, and whoever finishes it earns a 200-point extension bonus.</li>
+  <li>House rule: at the start of your turn you can take the top card of the discard pile instead of drawing. You can't throw that card straight back the same turn.</li>
   <li>When the draw pile runs out, the thrown-away cards are shuffled into a new draw pile. If nobody plays a card through a whole pile, there's no more reshuffling: play out your hands without drawing.</li>
-  <li>Scoring: 1 point per km, 100 per safety, 300 per coup fourré, 400 for finishing (plus 200 for finishing an extended race), plus bonuses. First to ${GAME_GOAL} points wins the game.</li>
+  <li>Scoring: 1 point per km, 100 per safety, 300 per coup fourré, 400 for finishing, plus bonuses. First to ${GAME_GOAL} points wins the game.</li>
   </ul></details>`;
 }
 function coverHTML(s){
@@ -366,32 +350,31 @@ function stripHTML(s, seat, mine){
   const dist = groups.length ? groups.map(([n,c])=>`<div class="dstack ${c>1?'multi':''}" aria-label="${c} × ${n} km">${cardHTML('D'+n,'mini')}${c>1?`<span class="cnt">×${c}</span>`:''}</div>`).join('') : `<div class="empty">No km played yet</div>`;
   const turn = s.phase==='play' && s.turn===seat;
   return `<section class="strip ${mine?'mine':''} ${turn?'turn':''}" aria-label="${esc(nameOf(seat,s))}">
-    <div class="strip-head"><span class="pname">${mine && mode==='online' ? esc(nameOf(seat,s))+' (you)' : esc(nameOf(seat,s))} · <small style="color:var(--muted)">${s.totals?.[seat]||0} pts</small></span><span class="km">${p.miles}<small> / ${goalOf(s)} km</small></span></div>
+    <div class="strip-head"><span class="pname">${mine && mode==='online' ? esc(nameOf(seat,s))+' (you)' : esc(nameOf(seat,s))} · <small style="color:var(--muted)">${s.totals?.[seat]||0} pts</small></span><span class="km">${p.miles}<small> / ${GOAL} km</small></span></div>
     <div>${statusChip(p)}</div>
     <div class="piles"><div class="slot">${battle}Battle</div><div class="slot">${speed}Speed</div><div class="slot dist"><div class="dstacks">${dist}</div>Distance</div></div>
     ${safes || !mine ? `<div class="extras">${safes}${mine?'':`<div class="backs" aria-label="${p.hand.length} cards in hand">${'<i></i>'.repeat(Math.min(p.hand.length,7))} ${p.hand.length} cards</div>`}</div>` : ''}
   </section>`;
 }
 function roadHTML(s, top, bottom){
-  const g=goalOf(s);
-  const lane = (seat,col) => `<div class="lane"><span class="flag"></span><div class="car" style="left:calc((100% - 66px) * ${Math.min(1,s.players[seat].miles/g)})">${carSVG(col)}</div></div>`;
-  return `<div class="road ${g>GOAL?'extended':''}" aria-hidden="true">${g>GOAL?`<div class="ext-label">Extended race: first to exactly ${g} km</div>`:''}${lane(top,'#7fa8ff')}${lane(bottom,'#f2c94c')}<div class="ticks">${[0,1,2,3,4].map(i=>`<span>${g*i/4}${i===4?' km':''}</span>`).join('')}</div></div>`;
+  const lane = (seat,col) => `<div class="lane"><span class="flag"></span><div class="car" style="left:calc((100% - 66px) * ${s.players[seat].miles/GOAL})">${carSVG(col)}</div></div>`;
+  return `<div class="road" aria-hidden="true">${lane(top,'#7fa8ff')}${lane(bottom,'#f2c94c')}<div class="ticks"><span>0</span><span>250</span><span>500</span><span>750</span><span>1000 km</span></div></div>`;
 }
 function tableHTML(s){
   const me=mySeat(s), view=me||'A', opp=other(view), mine=s.players[view];
   const myTurn = !!me && s.phase==='play' && s.turn===me;
   const canCoup = myTurn && s.coup && s.coup.seat===me && !s.drawn;
   const topCard = s.discard?.length ? s.discard[s.discard.length-1] : null;
-  const canTake = myTurn && !s.drawn && s.deck.length>0 && !!topCard && !s.oppTook;
+  const canTake = myTurn && !s.drawn && s.deck.length>0 && !!topCard;
   if (sel>=mine.hand.length) sel=-1;
   let big, small='';
   if (!me) { big='Both seats are taken. You are watching.'; }
   else if (s.phase!=='play') big='Hand over.';
   else if (!myTurn) big=`Waiting for ${esc(nameOf(opp,s))}…`;
   else if (canCoup) big='Coup fourré chance!';
-  else if (!s.drawn) { big = canTake ? `Your turn! Tap the deck to draw, or take the ${META[topCard].nm} from the discard pile.` : 'Your turn! Tap the deck to draw.'; if (!canTake && topCard && s.deck.length && s.oppTook) small=esc(whyNotTake(s,me)); }
+  else if (!s.drawn) { big = canTake ? `Your turn! Tap the deck to draw, or take the ${META[topCard].nm} from the discard pile.` : 'Your turn! Tap the deck to draw.'; }
   else if (sel<0) { big='Pick a card to play or throw away.'; small='Cards with a green dot can be played now.'; }
-  else { const c0=mine.hand[sel], r=whyNot(s,me,c0), rd=whyNotDiscard(s,me,sel); big=r?esc(r):`Ready: ${META[c0].nm}`; small = rd ? "You took this from the discard pile, so you can't throw it away this turn." : r ? 'You can still throw it away.' : overplays(s,me,c0) ? `This passes ${GOAL} km and extends the race to ${EXT_GOAL} for both players.` : ''; }
+  else { const r=whyNot(s,me,mine.hand[sel]), rd=whyNotDiscard(s,me,sel); big=r?esc(r):`Ready: ${META[mine.hand[sel]].nm}`; small = rd ? "You took this from the discard pile, so you can't throw it away this turn." : r ? 'You can still throw it away.' : ''; }
   if (busy) small='Saving…';
   const pulse = myTurn && !s.drawn && !canCoup && s.deck.length;
   const top = !topCard ? `<div class="empty">Discard</div>`
@@ -410,15 +393,7 @@ function tableHTML(s){
   let actions='';
   if (myTurn && s.drawn && sel>=0){
     const c=mine.hand[sel], r=whyNot(s,me,c), hz=META[c].k==='haz';
-    const ov=!r && overplays(s,me,c);
-    if (ov && overAsk===sel){
-      const to=mine.miles+META[c].n;
-      actions=`<div class="confirm-over" role="alertdialog" aria-label="Extend the race?"><b>Extend the race to ${EXT_GOAL} km?</b>
-        <span>This takes you to ${to} km, past ${GOAL}. The race then goes to ${EXT_GOAL} km for both players, and you'll need exactly ${EXT_GOAL-to} more. ${esc(nameOf(opp,s))} gets a chance to catch up. Whoever finishes the longer race earns a ${EXT_BONUS}-point extension bonus.</span>
-        <div class="row"><button class="btn" data-act="play-confirm" ${busy?'disabled':''}>Yes, extend the race</button><button class="btn dark" data-act="cancel-over">Cancel</button></div></div>`;
-    } else {
-      actions=`<div class="actions"><button class="btn ${hz?'red':'green'}" data-act="play" ${r||busy?'disabled':''}>${hz?'Play on '+esc(nameOf(opp,s)):ov?'Play (extends race)':'Play card'}</button><button class="btn dark" data-act="discard" ${busy||whyNotDiscard(s,me,sel)?'disabled':''}>Throw away</button></div>`;
-    }
+    actions=`<div class="actions"><button class="btn ${hz?'red':'green'}" data-act="play" ${r||busy?'disabled':''}>${hz?'Play on '+esc(nameOf(opp,s)):'Play card'}</button><button class="btn dark" data-act="discard" ${busy||whyNotDiscard(s,me,sel)?'disabled':''}>Throw away</button></div>`;
   }
   return topBar()+stripHTML(s,opp,false)+roadHTML(s,opp,view)+
     `<div class="mid"><button class="deck ${pulse?'pulse':''}" data-act="draw" aria-label="Draw a card, ${s.deck.length} left" ${pulse&&!busy?'':'disabled'}><div class="back"><span>1000</span></div><span class="count">${s.deck.length}</span></button>
